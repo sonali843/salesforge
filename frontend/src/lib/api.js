@@ -57,12 +57,27 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
     const data = error.response?.data || {};
-    if (status === 401 && !error.config?.url?.includes("/auth/")) {
+    const requestUrl = error.config?.url || "";
+    const isAuthRequest = requestUrl.includes("/auth/");
+
+    if (status === 401 && !isAuthRequest) {
       tokenStore.clear();
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+
+      if (data.code === "JWT_EXPIRED") {
+        sessionStorage.setItem(
+          "salesforge.authMessage",
+          "Your session expired. Please log in again.",
+        );
+      }
+
+      if (
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login")
+      ) {
         window.location.href = "/login";
       }
     }
+
     const normalized = {
       status,
       message: data.message || error.message || "Request failed",
@@ -70,6 +85,7 @@ api.interceptors.response.use(
       details: data.details,
       requestId: error.response?.headers?.["x-request-id"],
     };
+
     return Promise.reject(normalized);
   },
 );

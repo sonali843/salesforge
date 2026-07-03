@@ -37,9 +37,31 @@ const protect = async (req, res, next) => {
       sessionService.touchSession(req.sessionToken).catch(() => {});
     }
     next();
-  } catch (error) {
-    return res.status(401).json({ success: false, message: "Your session is invalid or has expired." });
+
+    //
+ } catch (error) {
+  if (error.name === "TokenExpiredError") {
+    return res.status(401).json({
+      success: false,
+      code: "JWT_EXPIRED",
+      message: "Your session has expired. Please log in again.",
+    });
   }
+
+  if (
+    error.name === "JsonWebTokenError" ||
+    error.name === "NotBeforeError"
+  ) {
+    return res.status(401).json({
+      success: false,
+      code: "JWT_INVALID",
+      message: "Your authentication token is invalid.",
+    });
+  }
+
+  return next(error);
+}
+//
 };
 
 const authorize = (...roles) => (req, res, next) => {
