@@ -8,7 +8,6 @@ try { helmet = require("helmet"); } catch (_) { /* optional */ }
 
 const { prisma } = require("./config/postgres");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
-const { createRateLimiter } = require("./middleware/rateLimit");
 const requestId = require("./middleware/requestId");
 const { compressionMiddleware, securityMiddleware, responseTime } = require("./middleware/performance");
 const metricsMiddleware = require("./middleware/metrics");
@@ -133,8 +132,8 @@ if (process.env.NODE_ENV !== "test") {
   app.use(accessLog);
 }
 
-// Rate limiting disabled for dev/UX testing. Re-enable in production by importing
-// createRateLimiter and applying it to the route groups below.
+// Rate limiting is disabled for local UX testing. Apply the rate-limit middleware
+// to route groups here before deploying to production.
 
 app.get("/", (req, res) => {
   res.status(200).json({
@@ -222,11 +221,7 @@ app.use("/api/health-scores", healthScoreRoutes);
 app.use("/api/ai-scoring", aiScoringRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/metrics", metricsRoutes);
-app.use("/api/price-books", priceBookRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/quotes", quoteRoutes);
 app.use("/api/reports", reportRoutes);
-app.use("/api/win-loss", winLossRoutes);
 app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/changelog", changelogRoutes);
 app.use("/api/gdpr", gdprRoutes);
