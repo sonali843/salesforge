@@ -128,7 +128,7 @@ export const openEventStream = (path, { onEvent, onError, params = {} } = {}) =>
   };
   // eventSource supports addEventListener per event name
   ["ready", "message", "LEAD_CREATED", "LEAD_UPDATED", "LEAD_DELETED", "LEAD_STATUS_CHANGED",
-   "DEAL_CREATED", "DEAL_UPDATED", "USER_INVITED", "USER_JOINED", "PAYMENT_SUCCEEDED",
+   "DEAL_CREATED", "DEAL_UPDATED", "DEAL_STAGE_CHANGED", "USER_INVITED", "USER_JOINED", "PAYMENT_SUCCEEDED",
    "PAYMENT_FAILED", "SUBSCRIPTION_UPDATED", "SEARCH_COMPLETED", "INTEGRATION_SYNCED",
    "notifications.read_all", "notification.new"].forEach((evt) => {
     source.addEventListener(evt, (e) => {
