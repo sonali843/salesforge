@@ -365,7 +365,7 @@ const OrganizationsList = () => {
   const [isSubmitting,     setIsSubmitting]     = useState(false);
   const [searchFocused,    setSearchFocused]    = useState(false);
 
-  const getHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('token')||''}`, 'Content-Type': 'application/json' });
+  const getHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('salesforge.token')||''}`, 'Content-Type': 'application/json' });
 
   const fetchOrganizations = useCallback(async () => {
     setLoading(true); setGlobalError(null);
