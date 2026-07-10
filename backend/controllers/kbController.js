@@ -7,6 +7,7 @@ const { AppError } = require("../middleware/errorHandler");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { recordAudit } = require("../services/auditService");
+const { invalidateCache } = require("../utils/cache");
 
 const META_KEY = "kbMeta";
 
@@ -75,6 +76,7 @@ const create = asyncHandler(async (req, res) => {
     include: { steps: true },
   });
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "kb.create", entityType: "KBArticle", entityId: article.id, metadata: { title } });
+  invalidateCache("/kb");
   return response.created(res, decorate(article));
 });
 
@@ -94,12 +96,14 @@ const update = asyncHandler(async (req, res) => {
     });
   }
   if (Object.keys(data).length) await prisma.playbook.update({ where: { id: article.id }, data });
+  invalidateCache("/kb");
   return response.success(res, { message: "Article updated." });
 });
 
 const remove = asyncHandler(async (req, res) => {
   const result = await prisma.playbook.deleteMany({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (result.count === 0) throw new AppError("Article not found.", 404);
+  invalidateCache("/kb");
   return response.success(res, { message: "Article deleted." });
 });
 

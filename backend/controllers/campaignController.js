@@ -4,8 +4,9 @@ const { AppError } = require("../middleware/errorHandler");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { recordAudit } = require("../services/auditService");
+const { invalidateCache } = require("../utils/cache");
 
-// Campaigns are stored using the existing models with JSON metadata.
+// Campaigns are stored using the existing Workflow model with JSON metadata.
 // This provides full campaign management without new schema.
 
 const CAMPAIGN_STATUSES = ["draft", "scheduled", "running", "paused", "completed", "cancelled"];
@@ -14,7 +15,8 @@ const CAMPAIGN_TYPES = ["email", "sms", "social", "webhook", "multi_channel"];
 const list = asyncHandler(async (req, res) => {
   const { page = 1, limit = 50, status, type } = req.query;
   const where = { orgId: req.orgId };
-  if (status) where.status = status;
+  // Workflow model has 'active' (Boolean), not 'status' (String)
+  if (status) where.active = (status === "running");
   const skip = (Number(page) - 1) * Number(limit);
   const [items, total] = await Promise.all([
     prisma.workflow.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: Number(limit) }),
@@ -32,18 +34,21 @@ const get = asyncHandler(async (req, res) => {
 const create = asyncHandler(async (req, res) => {
   const { name, description, type = "email", status = "draft", segment, content, schedule, budget } = req.body;
   if (!name) throw new AppError("name is required.", 400);
+  // WorkflowTrigger enum: use "SCHEDULED_TIME" as the default campaign trigger.
+  // Store the campaign type inside the conditions JSON object.
   const campaign = await prisma.workflow.create({
     data: {
       orgId: req.orgId,
       userId: req.user.id,
       name, description: description || null,
-      trigger: type.toUpperCase(),
-      conditions: segment || null,
+      trigger: "SCHEDULED_TIME",
+      conditions: { segment: segment || null, type, schedule: schedule || null, budget: budget || null },
       actions: content || [{ type: "SEND_EMAIL" }],
       active: status === "running",
     },
   });
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "campaign.create", entityType: "Campaign", entityId: campaign.id, metadata: { name, type, status } });
+  invalidateCache("/campaigns");
   return response.created(res, campaign);
 });
 
@@ -55,15 +60,23 @@ const update = asyncHandler(async (req, res) => {
   if (name !== undefined) data.name = name;
   if (description !== undefined) data.description = description;
   if (status !== undefined) data.active = status === "running";
-  if (segment !== undefined) data.conditions = segment;
+  if (segment !== undefined || budget !== undefined) {
+    // Merge into existing conditions JSON
+    const existingConditions = (typeof campaign.conditions === "object" && campaign.conditions) ? campaign.conditions : {};
+    if (segment !== undefined) existingConditions.segment = segment;
+    if (budget !== undefined) existingConditions.budget = budget;
+    data.conditions = existingConditions;
+  }
   if (content !== undefined) data.actions = content;
   await prisma.workflow.update({ where: { id: campaign.id }, data });
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign updated." });
 });
 
 const remove = asyncHandler(async (req, res) => {
   const result = await prisma.workflow.deleteMany({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (result.count === 0) throw new AppError("Campaign not found.", 404);
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign deleted." });
 });
 
@@ -74,6 +87,7 @@ const launch = asyncHandler(async (req, res) => {
     where: { id: campaign.id },
     data: { active: true, runCount: { increment: 1 }, lastRunAt: new Date() },
   });
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign launched." });
 });
 
@@ -81,6 +95,7 @@ const pause = asyncHandler(async (req, res) => {
   const campaign = await prisma.workflow.findFirst({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (!campaign) throw new AppError("Campaign not found.", 404);
   await prisma.workflow.update({ where: { id: campaign.id }, data: { active: false } });
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign paused." });
 });
 
