@@ -61,6 +61,7 @@ model User {
   emailVerificationToken   String?
   emailVerificationExpires DateTime?
   emailOtpLastSentAt       DateTime?
+  emailOtpFailedAttempts Int @default(0)
   isVerified               Boolean   @default(false)
 
   mobile                    String?   @unique

@@ -324,6 +324,7 @@ const sendOtp = asyncHandler(async (req, res) => {
       emailVerificationToken: tokenHash,
       emailVerificationExpires: new Date(Date.now() + 5 * 60 * 1000),
       emailOtpLastSentAt: new Date(),
+      emailOtpFailedAttempts: 0,
     },
   });
   const result = await sendVerificationEmail(email, otp);
@@ -334,16 +335,70 @@ const sendOtp = asyncHandler(async (req, res) => {
 });
 
 const verifyOtp = asyncHandler(async (req, res) => {
+  if (!req.body.email || !req.body.otp) {
+    throw new AppError("Email and OTP are required.", 400);
+  }
   const email = req.body.email.toLowerCase();
   const tokenHash = crypto.createHash("sha256").update(req.body.otp).digest("hex");
-  const user = await prisma.user.findFirst({
-    where: { email, emailVerificationToken: tokenHash, emailVerificationExpires: { gt: new Date() } },
+  const user = await prisma.user.findUnique({
+    where: { email },
   });
-  if (!user) throw new AppError("The OTP is invalid or has expired.", 400);
-  const updated = await prisma.user.update({
+
+  if (!user) {
+    throw new AppError("The OTP is invalid or has expired.", 400);
+  }
+  if (
+  !user.emailVerificationExpires ||
+  user.emailVerificationExpires <= new Date()
+) {
+  await prisma.user.update({
     where: { id: user.id },
-    data: { isVerified: true, emailVerificationToken: null, emailVerificationExpires: null },
+    data: {
+      emailVerificationToken: null,
+      emailVerificationExpires: null,
+      emailOtpFailedAttempts: 0,
+    },
   });
+
+  throw new AppError("The OTP is invalid or has expired.", 400);
+}
+if (user.emailVerificationToken !== tokenHash) {
+  const attempts = (user.emailOtpFailedAttempts || 0) + 1;
+
+  if (attempts >= 5) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailOtpFailedAttempts: 0,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+      },
+    });
+
+    throw new AppError(
+      "Too many invalid OTP attempts. Please request a new OTP.",
+      400
+    );
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailOtpFailedAttempts: attempts,
+    },
+  });
+
+  throw new AppError("The OTP is invalid or has expired.", 400);
+}
+  const updated = await prisma.user.update({
+  where: { id: user.id },
+  data: {
+    isVerified: true,
+    emailVerificationToken: null,
+    emailVerificationExpires: null,
+    emailOtpFailedAttempts: 0,
+  },
+});
   const isPending = updated.name === "Pending User";
   return response.success(res, {
     token: isPending ? undefined : generateToken(updated),
