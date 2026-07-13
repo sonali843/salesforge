@@ -4,6 +4,7 @@ const { AppError } = require("../middleware/errorHandler");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { recordAudit } = require("../services/auditService");
+const { invalidateCache } = require("../utils/cache");
 
 // Campaigns are stored using the existing Workflow model with JSON metadata.
 // This provides full campaign management without new schema.
@@ -47,6 +48,7 @@ const create = asyncHandler(async (req, res) => {
     },
   });
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "campaign.create", entityType: "Campaign", entityId: campaign.id, metadata: { name, type, status } });
+  invalidateCache("/campaigns");
   return response.created(res, campaign);
 });
 
@@ -67,12 +69,14 @@ const update = asyncHandler(async (req, res) => {
   }
   if (content !== undefined) data.actions = content;
   await prisma.workflow.update({ where: { id: campaign.id }, data });
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign updated." });
 });
 
 const remove = asyncHandler(async (req, res) => {
   const result = await prisma.workflow.deleteMany({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (result.count === 0) throw new AppError("Campaign not found.", 404);
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign deleted." });
 });
 
@@ -83,6 +87,7 @@ const launch = asyncHandler(async (req, res) => {
     where: { id: campaign.id },
     data: { active: true, runCount: { increment: 1 }, lastRunAt: new Date() },
   });
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign launched." });
 });
 
@@ -90,6 +95,7 @@ const pause = asyncHandler(async (req, res) => {
   const campaign = await prisma.workflow.findFirst({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (!campaign) throw new AppError("Campaign not found.", 404);
   await prisma.workflow.update({ where: { id: campaign.id }, data: { active: false } });
+  invalidateCache("/campaigns");
   return response.success(res, { message: "Campaign paused." });
 });
 
