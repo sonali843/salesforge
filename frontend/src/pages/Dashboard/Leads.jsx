@@ -74,6 +74,20 @@ const Leads = () => {
     catch (e) { toast.error(e.message); }
   };
   const applySaved = (s) => { const f = { ...filters, ...s.filters }; setFilters(f); setTimeout(() => load(1, f), 0); };
+  
+  // ADDED NEW DELETION LOGIC 
+  const deleteSavedSearch = async (e, id) => {
+    e.stopPropagation(); // Prevents clicking the outer trigger buttons
+    if (!confirm("Delete this saved search filter?")) return;
+    try {
+      await savedSearchService.remove(id); 
+      toast.success("Saved search deleted");
+      setSavedSearches((prev) => prev.filter((item) => item.id !== id));
+    } catch (e) {
+      toast.error(e.message || "Failed to delete saved search");
+    }
+  };
+
   const remove = async (id) => {
     if (!confirm("Delete this lead?")) return;
     try { await leadService.remove(id); toast.success("Deleted"); load(page); }
@@ -138,9 +152,13 @@ const Leads = () => {
           {savedSearches.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className={`text-xs ${subtext}`}>Saved:</span>
+              {/* UPDATED UI MAPPING BLOCK  */}
               {savedSearches.map((s) => (
-                <div key={s.id} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${darkMode ? "border-slate-700" : "border-slate-300"}`}>
-                  <button onClick={() => applySaved(s)} className="hover:text-[#00b5ad]">{s.name}</button>
+                <div key={s.id} className={`inline-flex items-center gap-2 rounded-full border pl-3 pr-2 py-0.5 text-xs ${darkMode ? "border-slate-700 bg-slate-800 text-slate-300" : "border-slate-300 bg-slate-50 text-slate-700"}`}>
+                  <button onClick={() => applySaved(s)} className="hover:text-[#00b5ad] font-medium transition-colors">{s.name}</button>
+                  <button onClick={(e) => deleteSavedSearch(e, s.id)} className="rounded-full p-0.5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 transition-colors" title="Delete search shortcut">
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>
