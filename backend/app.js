@@ -88,9 +88,11 @@ try { dealRoutes = require("./routes/dealRoutes"); } catch (e) { /* not configur
 const app = express();
 
 const frontendUrl = process.env.FRONTEND_URL?.trim() || "http://localhost:5173";
+
 const allowedOrigins = new Set([
   frontendUrl,
   "http://localhost:5173",
+  "http://192.168.0.116:5173",
   "http://127.0.0.1:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5174",

@@ -23,7 +23,14 @@ const list = asyncHandler(async (req, res) => {
   const installed = await prisma.integration.findMany({ where: { orgId: req.orgId } });
   const result = CATALOG.map((c) => {
     const inst = installed.find((i) => i.provider === c.id);
-    return { ...c, installed: !!inst, status: inst?.status, lastSyncAt: inst?.lastSyncAt, error: inst?.error, id: inst?.id };
+    return { 
+  ...c, 
+  installed: !!inst, 
+  status: inst?.status, 
+  lastSyncAt: inst?.lastSyncAt, 
+  error: inst?.error, 
+  id: inst?.id || c.id 
+};
   });
   return response.success(res, result);
 });
