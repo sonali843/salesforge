@@ -55,22 +55,45 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // FIX 1: Ignore canceled requests so components can catch AbortErrors properly
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
     const status = error.response?.status;
     const data = error.response?.data || {};
-    if (status === 401 && !error.config?.url?.includes("/auth/")) {
+    const requestUrl = error.config?.url || "";
+    const isAuthRequest = requestUrl.includes("/auth/");
+
+    if (status === 401 && !isAuthRequest) {
       tokenStore.clear();
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+
+      if (data.code === "JWT_EXPIRED") {
+        sessionStorage.setItem(
+          "salesforge.authMessage",
+          "Your session expired. Please log in again.",
+        );
+      }
+
+      if (
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login")
+      ) {
         window.location.href = "/login";
       }
     }
-    const normalized = {
+
+    // FIX 2: Attach the normalized data, but RETURN THE ORIGINAL ERROR OBJECT.
+    // This ensures err.response and err.name still exist for components that rely on them.
+    error.normalized = {
       status,
       message: data.message || error.message || "Request failed",
       code: data.code,
       details: data.details,
       requestId: error.response?.headers?.["x-request-id"],
     };
-    return Promise.reject(normalized);
+
+    return Promise.reject(error);
   },
 );
 
@@ -112,7 +135,7 @@ export const openEventStream = (path, { onEvent, onError, params = {} } = {}) =>
   };
   // eventSource supports addEventListener per event name
   ["ready", "message", "LEAD_CREATED", "LEAD_UPDATED", "LEAD_DELETED", "LEAD_STATUS_CHANGED",
-   "DEAL_CREATED", "DEAL_UPDATED", "USER_INVITED", "USER_JOINED", "PAYMENT_SUCCEEDED",
+   "DEAL_CREATED", "DEAL_UPDATED", "DEAL_STAGE_CHANGED", "USER_INVITED", "USER_JOINED", "PAYMENT_SUCCEEDED",
    "PAYMENT_FAILED", "SUBSCRIPTION_UPDATED", "SEARCH_COMPLETED", "INTEGRATION_SYNCED",
    "notifications.read_all", "notification.new"].forEach((evt) => {
     source.addEventListener(evt, (e) => {

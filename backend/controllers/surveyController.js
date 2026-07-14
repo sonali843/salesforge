@@ -4,11 +4,12 @@ const { AppError } = require("../middleware/errorHandler");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { recordAudit } = require("../services/auditService");
+const { invalidateCache } = require("../utils/cache");
 
 // Surveys are stored using the existing LeadActivity model + JSON metadata.
 // This provides full survey functionality without new schema models.
 
-const SURVEY_TYPES = ["NPS", "CSAT", "CES", "custom"];
+const SURVEY_TYPES = ["NPS", "CSAT", "CES", "CUSTOM"];
 
 const list = asyncHandler(async (req, res) => {
   // Return all survey-type activities as surveys
@@ -22,10 +23,21 @@ const list = asyncHandler(async (req, res) => {
   ]);
   const surveys = activities.map((a) => ({
     id: a.id,
+    title: a.title,
     name: a.title,
-    type: a.type,
-    status: a.status,
-    responses: a.responses || 0,
+    question: (() => {
+      try {
+        const parsed = a.body ? JSON.parse(a.body) : null;
+        if (Array.isArray(parsed)) return parsed[0] || null;
+        return parsed || null;
+      } catch {
+        return a.body || null;
+      }
+    })(),
+    type: a.metadata?.surveyType || a.type || "NPS",
+    surveyType: a.metadata?.surveyType || a.type || "NPS",
+    status: a.metadata?.status || "OPEN",
+    responses: a.metadata?.responses || 0,
     avgScore: a.metadata?.avgScore,
     createdAt: a.createdAt,
     createdBy: a.user,
@@ -43,24 +55,48 @@ const get = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-  const { name, type = "NPS", questions, isActive = true, isAnonymous = false } = req.body;
+  const body = req.body || {};
+  const name = body.name ?? body.title;
+  const rawType = body.type ?? "NPS";
+  const type = (() => {
+    const value = String(rawType).trim();
+    if (!value) return "NPS";
+    return value.toUpperCase() === "CUSTOM" ? "CUSTOM" : value.toUpperCase();
+  })();
+  const questions = Array.isArray(body.questions)
+    ? body.questions
+    : body.questions !== undefined
+      ? [body.questions]
+      : body.question
+        ? [body.question]
+        : undefined;
+  const isActive = body.isActive ?? true;
+  const isAnonymous = body.isAnonymous ?? false;
+
   if (!name) throw new AppError("name is required.", 400);
   if (!SURVEY_TYPES.includes(type)) throw new AppError(`type must be one of: ${SURVEY_TYPES.join(", ")}`, 400);
+
+  const fallbackLead = await prisma.lead.findFirst({
+    where: { orgId: req.orgId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  const leadId = fallbackLead?.id ?? null;
+
   const survey = await prisma.leadActivity.create({
     data: {
       orgId: req.orgId,
-      leadId: 1,
+      leadId: leadId ?? 1,
       userId: req.user.id,
-      type: type.toLowerCase(),
+      type: "SCORE_CHANGED",
       title: name,
       body: questions ? JSON.stringify(questions) : null,
-      status: isActive ? "OPEN" : "DRAFT",
-      responses: 0,
-      metadata: { questions, isAnonymous, avgScore: null },
+      metadata: { surveyType: type, questions, isAnonymous, avgScore: null, status: isActive ? "OPEN" : "DRAFT", responses: 0 },
     },
     include: { user: { select: { id: true, name: true, email: true } } },
   });
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "survey.create", entityType: "Survey", entityId: survey.id, metadata: { type, name } });
+  invalidateCache("/surveys");
   return response.created(res, survey);
 });
 
@@ -77,12 +113,14 @@ const update = asyncHandler(async (req, res) => {
   if (isActive !== undefined) data.status = isActive ? "OPEN" : "DRAFT";
   if (isAnonymous !== undefined) data.metadata = { ...(survey.metadata || {}), isAnonymous };
   await prisma.leadActivity.update({ where: { id: survey.id }, data });
+  invalidateCache("/surveys");
   return response.success(res, { message: "Survey updated." });
 });
 
 const remove = asyncHandler(async (req, res) => {
   const result = await prisma.leadActivity.deleteMany({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (result.count === 0) throw new AppError("Survey not found.", 404);
+  invalidateCache("/surveys");
   return response.success(res, { message: "Survey deleted." });
 });
 

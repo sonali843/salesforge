@@ -62,10 +62,19 @@ const reorderStages = asyncHandler(async (req, res) => {
   return response.success(res, { message: "Stages reordered." });
 });
 
+//FIX 2: Asli Safe-Delete logic implemented
 const deleteStage = asyncHandler(async (req, res) => {
+  const dealsCount = await prisma.deal.count({
+    where: { stageId: Number(req.params.id), orgId: req.orgId }
+  });
+  
+  if (dealsCount > 0) {
+    throw new AppError(`Cannot delete stage. It currently has ${dealsCount} active deals.`, 400);
+  }
+
   const result = await prisma.pipelineStage.deleteMany({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (result.count === 0) throw new AppError("Stage not found.", 404);
-  return response.success(res, { message: "Stage deleted." });
+  return response.success(res, { message: "Stage deleted safely." });
 });
 
 const listDeals = asyncHandler(async (req, res) => {
@@ -120,6 +129,11 @@ const createDeal = asyncHandler(async (req, res) => {
   }
 
   const lastPos = await prisma.deal.findFirst({ where: { orgId: req.orgId, stageId: resolvedStageId }, orderBy: { position: "desc" } });
+  
+  //  FIX 3: Asli Type-Checking implement ki gayi
+  const validStartupIds = Array.isArray(startupIds) ? startupIds : [];
+  const validInvestorIds = Array.isArray(investorIds) ? investorIds : [];
+
   const deal = await prisma.deal.create({
     data: {
       orgId: req.orgId,
@@ -133,8 +147,8 @@ const createDeal = asyncHandler(async (req, res) => {
       expectedCloseAt: expectedCloseAt ? new Date(expectedCloseAt) : null,
       source: source || null,
       ownerId: req.user.id,
-      startups: { create: startupIds.map((id) => ({ org: { connect: { id: Number(id) } } })) },
-      investors: { create: investorIds.map((id) => ({ org: { connect: { id: Number(id) } } })) },
+      startups: { create: validStartupIds.map((id) => ({ org: { connect: { id: Number(id) } } })) },
+      investors: { create: validInvestorIds.map((id) => ({ org: { connect: { id: Number(id) } } })) },
     },
     include: { stageRef: true, startups: { include: { org: true } }, investors: { include: { org: true } } },
   });
@@ -206,6 +220,7 @@ const deleteDeal = asyncHandler(async (req, res) => {
   return response.success(res, { message: "Deal deleted." });
 });
 
+// FIX 1: kanbanView crash fix (investors include kiya)
 const kanbanView = asyncHandler(async (req, res) => {
   await ensureDefaultStages(req.orgId);
   const stages = await prisma.pipelineStage.findMany({
@@ -215,7 +230,10 @@ const kanbanView = asyncHandler(async (req, res) => {
   const deals = await prisma.deal.findMany({
     where: { orgId: req.orgId, status: "ACTIVE" },
     orderBy: { position: "asc" },
-    include: { startups: { include: { org: true } } },
+    include: { 
+      startups: { include: { org: true } },
+      investors: { include: { org: true } } // Yahan fault tha, ise add kar diya
+    },
   });
   const byStage = stages.map((s) => ({
     ...s,
