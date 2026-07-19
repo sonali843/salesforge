@@ -31,6 +31,16 @@ const Quotas = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+if (Number(draft.target) < 0) {
+    toast.error("Target cannot be negative");
+    return;
+  }
+
+  if (!draft.userId.trim()) {
+  toast.error("User ID is required");
+  return;
+}
+
     try {
       await quotaService.create({ ...draft, target: Number(draft.target) });
       toast.success("Quota created");
@@ -83,8 +93,32 @@ const Quotas = () => {
           <form onSubmit={handleCreate} className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold mb-4">New quota</h3>
             <div className="space-y-3">
-              <UptoInput label="User ID" placeholder="Leave blank for yourself" value={draft.userId} onChange={(e) => setDraft({ ...draft, userId: e.target.value })} />
-              <UptoInput label="Target" type="number" value={draft.target} onChange={(e) => setDraft({ ...draft, target: e.target.value })} required />
+              <UptoInput label="User ID" value={draft.userId} onChange={(e) => setDraft({ ...draft, userId: e.target.value })} required />
+              <UptoInput
+  label="Target"
+  type="number"
+  min={0}
+  step="1"
+  value={draft.target}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    if (value === "") {
+      setDraft({ ...draft, target: "" });
+      return;
+    }
+
+    const num = Number(value);
+
+    if (num < 0) return;
+
+    setDraft({
+      ...draft,
+      target: num,
+    });
+  }}
+  required
+/>
               <UptoInput label="Type" value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value })} />
             </div>
             <div className="mt-4 flex justify-end gap-2">

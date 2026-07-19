@@ -9,8 +9,6 @@ import ChatBot from "../components/ChatBot";
 import CommandPalette from "@/components/CommandPalette";
 
 import Login from "../pages/Auth/Login";
-import Signup from "../pages/Auth/Signup";
-import ResetPassword from "../pages/Auth/ResetPassword";
 import AdminLogin from "../pages/Auth/AdminLogin";
 import Landing from "../pages/Landing/LandingPage";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -33,6 +31,7 @@ import { Usage, Audit, Sessions, TwoFactor } from "../pages/Dashboard/Settings";
 import { Changelog, Onboarding, NotificationPreferences, DataExport } from "../pages/Dashboard/Extras";
 import AdminDashboard from "../pages/Dashboard/AdminDashboard";
 import Quotes from "../pages/Dashboard/Quotes";
+import QuoteDetail from "../pages/Dashboard/QuoteDetail";
 import Products from "../pages/Dashboard/Products";
 import Playbooks from "../pages/Dashboard/Playbooks";
 import Analytics from "../pages/Dashboard/Analytics";
@@ -54,6 +53,7 @@ import EmailSearch from "../components/Tools/Email/EmailSearch";
 import DomainSearch from "../components/Tools/Domain/DomainSearch";
 import DatabaseSearch from "../components/Tools/Database/DatabaseSearch";
 import URLSearch from "../components/Tools/SocialUrl/SocialUrlSearch";
+import IntelHub from "../components/Tools/IntelHub/IntelHub";
 import Settings1 from "../components/Tools/Settings1/Settings1";
 import Notifications from "../components/Tools/Notifications/Notification";
 
@@ -78,8 +78,9 @@ const App = () => (
         <Route path="/" element={<ErrorBoundary><RootRedirect /></ErrorBoundary>} />
         <Route path="/login-gateway" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<ErrorBoundary><Login /></ErrorBoundary>} />
-        <Route path="/signup" element={<ErrorBoundary><Signup /></ErrorBoundary>} />
-        <Route path="/reset-password" element={<ErrorBoundary><ResetPassword /></ErrorBoundary>} />
+        <Route path="/signup" element={<Navigate to="/login" replace />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
+        <Route path="/reset-password" element={<Navigate to="/login" replace />} />
         <Route path="/admin-login" element={<ErrorBoundary><AdminLogin /></ErrorBoundary>} />
 
         <Route element={<RequireAuth><ErrorBoundary><DashboardLayout /></ErrorBoundary></RequireAuth>}>
@@ -99,6 +100,7 @@ const App = () => (
           <Route path="/leads/:id" element={<LeadDetail />} />
           <Route path="/deals" element={<Deals />} />
           <Route path="/quotes" element={<Quotes />} />
+          <Route path="/quotes/:id" element={<QuoteDetail />} />
           <Route path="/products" element={<Products />} />
           <Route path="/playbooks" element={<Playbooks />} />
           <Route path="/analytics" element={<Analytics />} />
@@ -124,10 +126,11 @@ const App = () => (
           <Route path="/health-scores" element={<HealthScores />} />
           <Route path="/ai-insights" element={<AIInsights />} />
 
-          <Route path="/tools/email" element={<EmailSearch />} />
-          <Route path="/tools/domain" element={<DomainSearch />} />
-          <Route path="/tools/database" element={<DatabaseSearch />} />
-          <Route path="/tools/url" element={<URLSearch />} />
+          <Route path="/tools/email" element={<IntelHub defaultModule="email_intelligence" />} />
+          <Route path="/tools/domain" element={<IntelHub defaultModule="domain_intelligence" />} />
+          <Route path="/tools/database" element={<IntelHub defaultModule="person_search" />} />
+          <Route path="/tools/url" element={<IntelHub defaultModule="social_media_search" />} />
+          <Route path="/tools/intel" element={<IntelHub />} />
 
           {/* Automation */}
           <Route path="/templates" element={<Templates />} />

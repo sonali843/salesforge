@@ -39,6 +39,7 @@ const kbRoutes = require("./routes/kbRoutes");
 const healthScoreRoutes = require("./routes/healthScoreRoutes");
 const aiScoringRoutes = require("./routes/aiScoringRoutes");
 const searchRoutes = require("./routes/searchRoutes");
+const intelRoutes = require("./routes/intelRoutes");
 const metricsRoutes = require("./routes/metricsRoutes");
 const domainSearchRoutes = require("./routes/domainSearchRoutes");
 const emailSearchRoutes = require("./routes/emailSearchRoutes");
@@ -96,6 +97,8 @@ const allowedOrigins = new Set([
   "http://127.0.0.1:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5174",
+  "http://localhost:5175",
+  "http://127.0.0.1:5175",
   "http://localhost:4173",
   "http://127.0.0.1:4173",
 ]);
@@ -222,6 +225,7 @@ app.use("/api/kb", kbRoutes);
 app.use("/api/health-scores", healthScoreRoutes);
 app.use("/api/ai-scoring", aiScoringRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/intel", intelRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/onboarding", onboardingRoutes);

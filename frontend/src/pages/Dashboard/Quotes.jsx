@@ -43,6 +43,39 @@ const Quotes = () => {
 
   const create = async (e) => {
     e.preventDefault();
+
+    if (draft.dealId && Number(draft.dealId) < 1) {
+  toast.error("Deal ID must be positive");
+  return;
+}
+
+if (Number(draft.tax) < 0) {
+  toast.error("Tax cannot be negative");
+  return;
+}
+
+if (Number(draft.discount) < 0) {
+  toast.error("Discount cannot be negative");
+  return;
+}
+
+for (const item of draft.items) {
+  if (Number(item.quantity) < 1) {
+    toast.error("Quantity must be at least 1");
+    return;
+  }
+
+  if (Number(item.unitPrice) < 0) {
+    toast.error("Unit Price cannot be negative");
+    return;
+  }
+}
+
+    if (!draft.title.trim()) {
+  toast.error("Title is required");
+  return;
+}
+
     try {
       await quoteService.create({
         ...draft,
@@ -171,7 +204,30 @@ const Quotes = () => {
             <form onSubmit={create} className="space-y-3">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <UptoInput label="Title *" value={draft.title} onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))} required placeholder="Q4 Enterprise Plan" />
-                <UptoInput label="Deal ID (optional)" type="number" value={draft.dealId} onChange={(e) => setDraft((p) => ({ ...p, dealId: e.target.value }))} />
+            <UptoInput
+  label="Deal ID (optional)"
+  type="number"
+  min={1}
+  step="1"
+  value={draft.dealId}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    if (value === "") {
+      setDraft((p) => ({ ...p, dealId: "" }));
+      return;
+    }
+
+    const num = Number(value);
+
+    if (num < 1) return;
+
+    setDraft((p) => ({
+      ...p,
+      dealId: num,
+    }));
+  }}
+/>
               </div>
               <UptoTextarea label="Description" value={draft.description} onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))} />
 
@@ -180,8 +236,36 @@ const Quotes = () => {
                 {draft.items.map((item, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 mb-2">
                     <div className="col-span-5"><UptoInput placeholder="Item name" value={item.name} onChange={(e) => { const items = [...draft.items]; items[idx].name = e.target.value; setDraft((p) => ({ ...p, items })); }} /></div>
-                    <div className="col-span-2"><UptoInput type="number" placeholder="Qty" value={item.quantity} onChange={(e) => { const items = [...draft.items]; items[idx].quantity = Number(e.target.value); setDraft((p) => ({ ...p, items })); }} /></div>
-                    <div className="col-span-3"><UptoInput type="number" placeholder="Unit price" value={item.unitPrice} onChange={(e) => { const items = [...draft.items]; items[idx].unitPrice = Number(e.target.value); setDraft((p) => ({ ...p, items })); }} /></div>
+                    <div className="col-span-2"><UptoInput type="number" placeholder="Qty" min={1}
+step="1" value={item.quantity} onChange={(e) => { const items = [...draft.items]; const value = e.target.value;
+
+if (value === "") {
+  items[idx].quantity = "";
+} else {
+  const num = Number(value);
+
+  if (num < 1) return;
+
+  items[idx].quantity = num;
+}
+
+setDraft((p) => ({ ...p, items }));
+ setDraft((p) => ({ ...p, items })); }} /></div>
+                    <div className="col-span-3"><UptoInput type="number" placeholder="Unit price" min={0} step="0.01" value={item.unitPrice} onChange={(e) => { const items = [...draft.items]; const value = e.target.value;
+
+if (value === "") {
+  items[idx].unitPrice = "";
+} else {
+  const num = Number(value);
+
+  if (num < 0) return;
+
+  items[idx].unitPrice = num;
+}
+
+setDraft((p) => ({ ...p, items }));
+
+ setDraft((p) => ({ ...p, items })); }} /></div>
                     <div className="col-span-2 flex items-center">
                       {draft.items.length > 1 && <UptoButton variant="ghost" onClick={() => setDraft((p) => ({ ...p, items: p.items.filter((_, i) => i !== idx) }))} className="text-red-500"><Trash2 className="h-4 w-4" /></UptoButton>}
                     </div>
@@ -191,8 +275,44 @@ const Quotes = () => {
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <UptoInput label="Tax" type="number" value={draft.tax} onChange={(e) => setDraft((p) => ({ ...p, tax: Number(e.target.value) }))} />
-                <UptoInput label="Discount" type="number" value={draft.discount} onChange={(e) => setDraft((p) => ({ ...p, discount: Number(e.target.value) }))} />
+                <UptoInput label="Tax" type="number" min={0} value={draft.tax}
+        onChange={(e) => {
+  const value = e.target.value;
+
+  if (value === "") {
+    setDraft((p) => ({ ...p, tax: "" }));
+    return;
+  }
+
+  const num = Number(value);
+
+  if (num < 0) return;
+
+  setDraft((p) => ({
+    ...p,
+    tax: num,
+  }));
+}}
+                />
+            <UptoInput label="Discount" type="number" min={0} value={draft.discount}
+        onChange={(e) => {
+  const value = e.target.value;
+
+  if (value === "") {
+    setDraft((p) => ({ ...p, tax: "" }));
+    return;
+  }
+
+  const num = Number(value);
+
+  if (num < 0) return;
+
+  setDraft((p) => ({
+    ...p,
+    discount: num,
+  }));
+}}
+                />
                 <UptoInput label="Currency" value={draft.currency} onChange={(e) => setDraft((p) => ({ ...p, currency: e.target.value }))} />
               </div>
               <UptoTextarea label="Terms" value={draft.terms} onChange={(e) => setDraft((p) => ({ ...p, terms: e.target.value }))} />

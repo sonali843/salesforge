@@ -6,7 +6,10 @@ const response = require("../utils/response");
 const generateToken = require("../utils/generateToken");
 const { createNotification } = require("../services/notificationService");
 const { recordAudit } = require("../services/auditService");
+//  //
 
+const { setAuthCookie } = require("../utils/authCookie");
+//   //
 const getSafeAdmin = (user) => ({
   id: user.id,
   name: user.name,
@@ -36,15 +39,22 @@ const adminLogin = asyncHandler(async (req, res) => {
     type: "ADMIN_LOGIN",
     message: "Administrator login successful.",
     link: "/admin/dashboard",
-  });
+  }); //
   await recordAudit({
-    userId: user.id,
-    action: "admin.login",
-    entityType: "User",
-    entityId: user.id,
-    ipAddress: req.ip,
-  });
-  return response.success(res, { token: generateToken(user), user: getSafeAdmin(user) });
+  userId: user.id,
+  action: "admin.login",
+  entityType: "User",
+  entityId: user.id,
+  ipAddress: req.ip,
+});
+  //   //
+ const token = generateToken(user);
+setAuthCookie(res, token);
+
+return response.success(res, {
+  user: getSafeAdmin(user),
+});
+//    //
 });
 
 const getDashboardSummary = asyncHandler(async (req, res) => {
@@ -120,7 +130,11 @@ const updateUser = asyncHandler(async (req, res) => {
     entityId: user.id,
     metadata: data,
   });
-  return response.success(res, { message: "User updated." });
+  //   //
+ return response.success(res, {
+  message: "User updated.",
+});
+//   //
 });
 
 const getPlatformStats = asyncHandler(async (req, res) => {
