@@ -67,7 +67,7 @@ const deleteStage = asyncHandler(async (req, res) => {
   const dealsCount = await prisma.deal.count({
     where: { stageId: Number(req.params.id), orgId: req.orgId }
   });
-  
+
   if (dealsCount > 0) {
     throw new AppError(`Cannot delete stage. It currently has ${dealsCount} active deals.`, 400);
   }
@@ -129,10 +129,20 @@ const createDeal = asyncHandler(async (req, res) => {
   }
 
   const lastPos = await prisma.deal.findFirst({ where: { orgId: req.orgId, stageId: resolvedStageId }, orderBy: { position: "desc" } });
-  
+
   //  FIX 3: Asli Type-Checking implement ki gayi
   const validStartupIds = Array.isArray(startupIds) ? startupIds : [];
   const validInvestorIds = Array.isArray(investorIds) ? investorIds : [];
+
+  let parsedExpectedCloseAt = null;
+
+  if (expectedCloseAt) {
+    parsedExpectedCloseAt = new Date(expectedCloseAt);
+
+    if (isNaN(parsedExpectedCloseAt.getTime())) {
+      throw new AppError("Invalid expected close date.", 400);
+    }
+  }
 
   const deal = await prisma.deal.create({
     data: {
@@ -144,7 +154,7 @@ const createDeal = asyncHandler(async (req, res) => {
       stageId: resolvedStageId,
       position: (lastPos?.position || 0) + 1,
       probability: Number(probability),
-      expectedCloseAt: expectedCloseAt ? new Date(expectedCloseAt) : null,
+      expectedCloseAt: parsedExpectedCloseAt,
       source: source || null,
       ownerId: req.user.id,
       startups: { create: validStartupIds.map((id) => ({ org: { connect: { id: Number(id) } } })) },
@@ -230,7 +240,7 @@ const kanbanView = asyncHandler(async (req, res) => {
   const deals = await prisma.deal.findMany({
     where: { orgId: req.orgId, status: "ACTIVE" },
     orderBy: { position: "asc" },
-    include: { 
+    include: {
       startups: { include: { org: true } },
       investors: { include: { org: true } } // Yahan fault tha, ise add kar diya
     },

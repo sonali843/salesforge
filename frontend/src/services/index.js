@@ -21,7 +21,12 @@ export const leadService = {
   myTasks: (params) => unwrapList(api.get("/lead-tasks/me/tasks", { params })),
   activity: (leadId, params) => unwrapList(api.get(`/lead-activity/${leadId}/activity`, { params })),
   import: (csv) => unwrap(api.post("/csv/leads/import", { csv })),
-  exportUrl: () => `${api.defaults.baseURL}/csv/leads/export`,
+  exportUrl: (filters = {}) => {
+    const q = new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== "" && v !== null)));
+    const token = typeof window !== "undefined" ? localStorage.getItem("salesforge.token") : null;
+    if (token) q.append("token", token);
+    return `${api.defaults.baseURL}/csv/leads/export?${q.toString()}`;
+  },
 };
 
 export const tagService = {
@@ -50,7 +55,8 @@ export const teamService = {
 export const billingService = {
   plans: () => unwrap(api.get("/billing/plans")),
   subscription: () => unwrap(api.get("/billing/subscription")),
-  checkout: (data) => unwrap(api.post("/billing/checkout", data)),
+  createOrder: (data) => unwrap(api.post("/billing/razorpay/order", data)),
+  verifyPayment: (data) => unwrap(api.post("/billing/razorpay/verify", data)),
   cancel: () => unwrap(api.post("/billing/cancel")),
   payments: (params) => unwrapList(api.get("/billing/payments", { params })),
   usage: () => unwrap(api.get("/billing/usage")),
@@ -456,4 +462,13 @@ export const aiScoringService = {
   score: (id) => unwrap(api.post(`/ai-scoring/score/${id}`)),
   scoreBatch: (ids) => unwrap(api.post("/ai-scoring/score-batch", { ids })),
   scoreAll: () => unwrap(api.post("/ai-scoring/score-all")),
+};
+
+export const intelService = {
+  search: (data) => unwrap(api.post("/intel/search", data)),
+  history: (params) => unwrapList(api.get("/intel/history", { params })),
+  togglePin: (id) => unwrap(api.patch(`/intel/history/${id}/pin`)),
+  deleteHistory: (id) => unwrap(api.delete(`/intel/history/${id}`)),
+  saved: () => unwrap(api.get("/intel/saved")),
+  saveQuery: (data) => unwrap(api.post("/intel/saved", data)),
 };
