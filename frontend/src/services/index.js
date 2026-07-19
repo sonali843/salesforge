@@ -1,3 +1,4 @@
+
 import { api, unwrap, unwrapList } from "../lib/api";
 
 export const leadService = {
@@ -103,6 +104,11 @@ export const notificationService = {
     const data = await unwrap(api.get("/notifications", { params: { limit: 1 } }));
     return data?.summary?.unreadCount || 0;
   },
+};
+
+export const userService = {
+  me: () => unwrap(api.get("/users/me")),
+  updateMe: (data) => unwrap(api.patch("/users/me", data)),
 };
 
 export const sessionService = {
