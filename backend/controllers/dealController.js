@@ -67,7 +67,7 @@ const deleteStage = asyncHandler(async (req, res) => {
   const dealsCount = await prisma.deal.count({
     where: { stageId: Number(req.params.id), orgId: req.orgId }
   });
-  
+
   if (dealsCount > 0) {
     throw new AppError(`Cannot delete stage. It currently has ${dealsCount} active deals.`, 400);
   }
@@ -129,10 +129,20 @@ const createDeal = asyncHandler(async (req, res) => {
   }
 
   const lastPos = await prisma.deal.findFirst({ where: { orgId: req.orgId, stageId: resolvedStageId }, orderBy: { position: "desc" } });
-  
+
   //  FIX 3: Asli Type-Checking implement ki gayi
   const validStartupIds = Array.isArray(startupIds) ? startupIds : [];
   const validInvestorIds = Array.isArray(investorIds) ? investorIds : [];
+
+  let parsedExpectedCloseAt = null;
+
+  if (expectedCloseAt) {
+    parsedExpectedCloseAt = new Date(expectedCloseAt);
+
+    if (isNaN(parsedExpectedCloseAt.getTime())) {
+      throw new AppError("Invalid expected close date.", 400);
+    }
+  }
 
   const deal = await prisma.deal.create({
     data: {
@@ -144,7 +154,7 @@ const createDeal = asyncHandler(async (req, res) => {
       stageId: resolvedStageId,
       position: (lastPos?.position || 0) + 1,
       probability: Number(probability),
-      expectedCloseAt: expectedCloseAt ? new Date(expectedCloseAt) : null,
+      expectedCloseAt: parsedExpectedCloseAt,
       source: source || null,
       ownerId: req.user.id,
       startups: { create: validStartupIds.map((id) => ({ org: { connect: { id: Number(id) } } })) },
@@ -230,7 +240,7 @@ const kanbanView = asyncHandler(async (req, res) => {
   const deals = await prisma.deal.findMany({
     where: { orgId: req.orgId, status: "ACTIVE" },
     orderBy: { position: "asc" },
-    include: { 
+    include: {
       startups: { include: { org: true } },
       investors: { include: { org: true } } // Yahan fault tha, ise add kar diya
     },
@@ -244,38 +254,20 @@ const kanbanView = asyncHandler(async (req, res) => {
 
 const metrics = asyncHandler(async (req, res) => {
   const orgId = req.orgId;
-  const [total, won, lost, wonAmount, lostAmount, activeDeals] = await Promise.all([
+  const [total, won, lost, open, sumAmount, wonAmount, lostAmount] = await Promise.all([
     prisma.deal.count({ where: { orgId } }),
     prisma.deal.count({ where: { orgId, status: "COMPLETED" } }),
     prisma.deal.count({ where: { orgId, status: "INACTIVE" } }),
+    prisma.deal.count({ where: { orgId, status: "ACTIVE" } }),
+    prisma.deal.aggregate({ where: { orgId, status: "ACTIVE" }, _sum: { amount: true } }),
     prisma.deal.aggregate({ where: { orgId, status: "COMPLETED" }, _sum: { amount: true } }),
     prisma.deal.aggregate({ where: { orgId, status: "INACTIVE" }, _sum: { amount: true } }),
-    prisma.deal.findMany({ where: { orgId, status: "ACTIVE" } }),
   ]);
-
-  const openCount = activeDeals.length;
-  const openAmount = activeDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
-
-  const commitDeals = activeDeals.filter((d) => (d.probability || 0) >= 90);
-  const commitCount = commitDeals.length;
-  const commitAmount = commitDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
-
-  const bestCaseDeals = activeDeals.filter((d) => (d.probability || 0) >= 50);
-  const bestCaseCount = bestCaseDeals.length;
-  const bestCaseAmount = bestCaseDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
-
-  const weightedPipeline = activeDeals.reduce((sum, d) => sum + (d.amount || 0) * ((d.probability || 0) / 100), 0);
-
   const wonRate = total > 0 ? Math.round((won / total) * 100) : 0;
-
+  const weightedPipeline = (sumAmount._sum.amount || 0) * 0.5; // rough weighted estimate
   return response.success(res, {
-    total,
-    won,
-    lost,
-    open: { count: openCount, amount: openAmount },
-    commit: { count: commitCount, amount: commitAmount },
-    bestCase: { count: bestCaseCount, amount: bestCaseAmount },
-    pipelineValue: openAmount,
+    total, won, lost, open,
+    pipelineValue: sumAmount._sum.amount || 0,
     wonValue: wonAmount._sum.amount || 0,
     lostValue: lostAmount._sum.amount || 0,
     wonRate,

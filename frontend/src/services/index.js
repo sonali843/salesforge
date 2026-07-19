@@ -54,7 +54,8 @@ export const teamService = {
 export const billingService = {
   plans: () => unwrap(api.get("/billing/plans")),
   subscription: () => unwrap(api.get("/billing/subscription")),
-  checkout: (data) => unwrap(api.post("/billing/checkout", data)),
+  createOrder: (data) => unwrap(api.post("/billing/razorpay/order", data)),
+  verifyPayment: (data) => unwrap(api.post("/billing/razorpay/verify", data)),
   cancel: () => unwrap(api.post("/billing/cancel")),
   payments: (params) => unwrapList(api.get("/billing/payments", { params })),
   usage: () => unwrap(api.get("/billing/usage")),
@@ -63,8 +64,6 @@ export const billingService = {
 export const apiKeyService = {
   list: () => unwrap(api.get("/api-keys")),
   create: (data) => unwrap(api.post("/api-keys", data)),
-  update: (id, data) => unwrap(api.patch(`/api-keys/${id}`, data)),
-  regenerate: (id) => unwrap(api.post(`/api-keys/${id}/regenerate`)),
   revoke: (id) => unwrap(api.delete(`/api-keys/${id}`)),
 };
 
@@ -250,8 +249,6 @@ export const integrationMarketplaceService = {
   list: () => unwrap(api.get("/integrations-marketplace")),
   catalog: () => unwrap(api.get("/integrations-marketplace/catalog")),
   install: (data) => unwrap(api.post("/integrations-marketplace/install", data)),
-  update: (id, data) => unwrap(api.patch(`/integrations-marketplace/${id}`, data)),
-  validate: (id, data) => unwrap(api.post(`/integrations-marketplace/${id}/validate`, data)),
   sync: (id) => unwrap(api.post(`/integrations-marketplace/${id}/sync`)),
   uninstall: (id) => unwrap(api.delete(`/integrations-marketplace/${id}`)),
 };
