@@ -46,4 +46,75 @@ const broadcast = asyncHandler(async (req, res) => {
   return response.success(res, { sent: userIds.length });
 });
 
-module.exports = { listNotifications, readNotification, readAllNotifications, broadcast };
+const testEmail = asyncHandler(async (req, res) => {
+  const { category, title, message } = req.body;
+  if (!category || !title || !message) {
+    return response.error(res, "category, title, and message are required", 400);
+  }
+
+  const userId = req.user.id;
+  const orgId = req.orgId || null;
+  const lowerCategory = category.toLowerCase();
+
+  // 1. Read the logged-in user's preferences.
+  const prefs = await prisma.notificationPreference.findMany({
+    where: {
+      userId: Number(userId),
+      category: lowerCategory,
+      OR: orgId
+        ? [{ orgId: Number(orgId) }, { orgId: null }]
+        : [{ orgId: null }],
+    },
+    orderBy: { orgId: "desc" },
+  });
+
+  // 2. Check the Email channel preference.
+  const emailPref = prefs.find(p => p.channel === "email");
+  // Default to true if preference is not explicitly set to false
+  const emailEnabled = !emailPref || emailPref.enabled !== false;
+
+  // 3. Respect the Email toggle.
+  if (!emailEnabled) {
+    return response.success(res, {
+      success: false,
+      message: `Email notifications are disabled for category "${category}".`,
+      sent: false
+    });
+  }
+
+  // 4. Send email only when enabled.
+  const user = await prisma.user.findUnique({
+    where: { id: Number(userId) },
+    select: { email: true }
+  });
+
+  if (!user || !user.email) {
+    return response.error(res, "Recipient user or email address not found.", 404);
+  }
+
+  const emailService = require("../services/emailService");
+  const { compileTemplate } = require("../services/emailTemplates");
+  
+  // Format matching SYSTEM_ALERT or custom test layout
+  const { subject, html, text } = compileTemplate("SYSTEM_ALERT", message, null, { title });
+
+  const result = await emailService.send({
+    to: user.email,
+    subject: `${title} - Test`,
+    html,
+    text
+  });
+
+  if (result) {
+    return response.success(res, {
+      success: true,
+      message: "Test email sent successfully.",
+      sent: true
+    });
+  } else {
+    return response.error(res, "Failed to send test email.", 500);
+  }
+});
+
+module.exports = { listNotifications, readNotification, readAllNotifications, broadcast, testEmail };
+

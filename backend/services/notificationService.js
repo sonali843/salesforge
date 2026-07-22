@@ -1,7 +1,8 @@
 const { prisma } = require("../config/postgres");
 const eventBus = require("./eventBus");
 const { sendPushNotification } = require("./pushService");
-const { sendNotificationEmail } = require("./emailService");
+const { send } = require("./emailService");
+const { compileTemplate } = require("./emailTemplates");
 
 // ---------------------------------------------------------------------------
 // Primitive: creates a notification row without any preference check.
@@ -67,7 +68,7 @@ const dispatchNotification = async ({
     const prefs = await prisma.notificationPreference.findMany({
       where: {
         userId: Number(userId),
-        category,
+        category: category.toLowerCase(),
         OR: orgId
           ? [{ orgId: Number(orgId) }, { orgId: null }]
           : [{ orgId: null }],
@@ -120,16 +121,29 @@ const dispatchNotification = async ({
 
   // 3. EMAIL NOTIFICATION
   if (emailEnabled) {
-    // Look up user's email address
-    prisma.user.findUnique({
-      where: { id: Number(userId) },
-      select: { email: true }
-    }).then(user => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: Number(userId) },
+        select: { email: true }
+      });
       if (user && user.email) {
-        sendNotificationEmail(user.email, title, `${message}\n\nView details: ${link ? (process.env.FRONTEND_URL || 'http://localhost:5173') + link : 'Login to app'}`)
-          .catch(err => console.error("Failed to send email notification:", err));
+        // Compile specific template styled with branding, action button, footer, etc.
+        const { subject, html, text } = compileTemplate(type, message, link, metadata);
+        
+        // Dispatch the email
+        await send({
+          to: user.email,
+          subject,
+          html,
+          text,
+        });
+      } else {
+        console.warn(`[NotificationService] No email found for user ${userId}. Skipping email.`);
       }
-    }).catch(err => console.error("Failed to lookup user for email notification:", err));
+    } catch (err) {
+      console.error("[NotificationService] Failed to send email notification:", err);
+      // Continue the remaining notification pipeline even when SMTP/email flow fails.
+    }
   }
 
   return notification;
@@ -156,6 +170,7 @@ const markAllNotificationsRead = async (userId) => {
 module.exports = {
   createNotification,
   dispatchNotification,
+  notify: dispatchNotification,
   createInAppNotification: dispatchNotification, // Alias for backward compatibility just in case
   markAllNotificationsRead,
   markNotificationRead,

@@ -93,7 +93,7 @@ const createLead = asyncHandler(async (req, res) => {
     category: "lead",
     message: `Lead ${lead.name} added to your pipeline.`,
     link: `/app/leads/${lead.id}`,
-    metadata: { leadId: lead.id },
+    metadata: { leadId: lead.id, leadName: lead.name },
   });
   await recordActivity({
     leadId: lead.id,
@@ -232,7 +232,7 @@ const updateLead = asyncHandler(async (req, res) => {
         category: "lead",
         message: `Lead ${lead.name} was updated by ${req.user.name}.`,
         link: `/app/leads/${lead.id}`,
-        metadata: { leadId: lead.id, changes: changes.map(c => c.field) },
+        metadata: { leadId: lead.id, leadName: lead.name, changes: changes.map(c => c.field) },
       });
     }
   }

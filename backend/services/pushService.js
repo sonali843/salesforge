@@ -1,6 +1,20 @@
 const { prisma } = require("../config/postgres");
-const { getMessaging } = require("firebase-admin/messaging");
-const { getApps } = require("firebase-admin/app");
+
+let getMessaging = null;
+let getApps = () => [];
+
+try {
+  getMessaging = require("firebase-admin/messaging").getMessaging;
+  getApps = require("firebase-admin/app").getApps;
+} catch (_) {
+  try {
+    const admin = require("firebase-admin");
+    getMessaging = () => admin.messaging && admin.messaging();
+    getApps = () => (admin.apps || []);
+  } catch (e) {
+    // Firebase fallback
+  }
+}
 
 /**
  * Sends a push notification to all devices registered to a specific user.

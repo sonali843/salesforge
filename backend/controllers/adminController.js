@@ -73,23 +73,35 @@ const adminGoogleLogin = asyncHandler(async (req, res) => {
   });
 });
 
-// Legacy email/password admin login (kept as fallback)
+// Admin login (supports Email/Password & Google OAuth fallback)
 const adminLogin = asyncHandler(async (req, res) => {
-  const email = req.body.email.toLowerCase();
-  let user = await prisma.user.findUnique({ where: { email } });
+  const { credential, email, password } = req.body;
+
+  if (credential) {
+    return adminGoogleLogin(req, res);
+  }
+
+  if (!email || !password) {
+    throw new AppError("Email and password are required.", 400);
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
   const hasAdmin = (await prisma.user.count({ where: { role: "ADMIN" } })) > 0;
   if (!user) {
     if (hasAdmin) throw new AppError("Invalid admin credentials.", 401);
-    const hashed = await bcrypt.hash(req.body.password, 12);
+    const hashed = await bcrypt.hash(password, 12);
     user = await prisma.user.create({
-      data: { name: "Platform Admin", email, password: hashed, role: "ADMIN", isVerified: true },
+      data: { name: "Platform Admin", email: normalizedEmail, password: hashed, role: "ADMIN", isVerified: true },
     });
   } else {
     if (user.role !== "ADMIN") throw new AppError("This account is not an administrator.", 403);
-    const ok = await bcrypt.compare(req.body.password, user.password);
+    if (!user.password) throw new AppError("Invalid admin credentials.", 401);
+    const ok = await bcrypt.compare(password, user.password);
     if (!ok) throw new AppError("Invalid admin credentials.", 401);
   }
+
   await dispatchNotification({
     userId: user.id,
     orgId: user.organizationId,
@@ -97,22 +109,22 @@ const adminLogin = asyncHandler(async (req, res) => {
     category: "system",
     message: "Administrator login successful.",
     link: "/admin/dashboard",
-  }); //
+  });
   await recordAudit({
-  userId: user.id,
-  action: "admin.login",
-  entityType: "User",
-  entityId: user.id,
-  ipAddress: req.ip,
-});
-  //   //
- const token = generateToken(user);
-setAuthCookie(res, token);
+    userId: user.id,
+    action: "admin.login",
+    entityType: "User",
+    entityId: user.id,
+    ipAddress: req.ip,
+  });
 
-return response.success(res, {
-  user: getSafeAdmin(user),
-});
-//    //
+  const token = generateToken(user);
+  setAuthCookie(res, token);
+
+  return response.success(res, {
+    token,
+    user: getSafeAdmin(user),
+  });
 });
 
 const getDashboardSummary = asyncHandler(async (req, res) => {

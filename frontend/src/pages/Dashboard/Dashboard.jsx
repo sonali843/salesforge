@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { analyticsService, usageService } from "@/services";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { UptoPage, SectionHeading, UptoCard, UptoToolCard } from "@/components/UI/UptoStyles";
 import { UptoError as ErrorBanner, UptoSpinner as FullPageSpinner, UptoBadge as Badge } from "@/components/UI/UptoHooks";
 import { Activity, BarChart3, TrendingUp, Users, Target, Search, MailCheck, Globe2, Link2, Sparkles, AlertCircle, Zap, ArrowRight } from "lucide-react";
@@ -12,6 +13,7 @@ const Dashboard = () => {
   const { theme } = useTheme();
   const darkMode = theme === "dark";
   const navigate = useNavigate();
+  const { user } = useAuth();
   usePushNotifications(0);
   const [data, setData] = useState(null);
   const [usage, setUsage] = useState(null);
@@ -19,6 +21,12 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [secondaryError, setSecondaryError] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user?.role === "ADMIN") {
+      navigate("/admin-dashboard", { replace: true });
+    }
+  }, [user, navigate]);
 
   const load = async () => {
     setLoading(true);
