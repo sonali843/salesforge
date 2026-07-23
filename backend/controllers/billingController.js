@@ -7,10 +7,13 @@ const { dispatchNotification } = require("../services/notificationService");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+let razorpay = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+}
 
 const PLAN_PRICING = {
   FREE: { monthly: 0, yearly: 0, features: ["Up to 100 leads", "Basic search tools", "1 team member"] },
@@ -110,6 +113,8 @@ const createOrder = asyncHandler(async (req, res) => {
     const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price: 0, paymentRef: null });
     return response.success(res, { free: true, subscription: sub });
   }
+
+  if (!razorpay) throw new AppError("Payment gateway is not configured.", 500);
 
   const amountPaise = Math.round(price * 100); // Razorpay amounts are in the smallest currency unit
   const order = await razorpay.orders.create({
