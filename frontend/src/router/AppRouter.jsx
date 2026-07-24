@@ -10,6 +10,7 @@ import CommandPalette from "@/components/CommandPalette";
 
 import Login from "../pages/Auth/Login";
 import AdminLogin from "../pages/Auth/AdminLogin";
+import AcceptInvite from "../pages/Auth/AcceptInvite";
 import Landing from "../pages/Landing/LandingPage";
 import DashboardLayout from "../components/layout/DashboardLayout";
 
@@ -30,6 +31,11 @@ import { ApiKeys, Webhooks } from "../pages/Dashboard/ApiKeys";
 import { Usage, Audit, Sessions, TwoFactor } from "../pages/Dashboard/Settings";
 import { Changelog, Onboarding, NotificationPreferences, DataExport } from "../pages/Dashboard/Extras";
 import AdminDashboard from "../pages/Dashboard/AdminDashboard";
+import AdminMainLayout from "../components/admin/AdminMainLayout";
+import AdminUsers from "../components/admin/AdminUsers";
+import AdminServerHealth from "../components/admin/AdminServerHealth";
+import AdminAuditLogs from "../components/admin/AdminAuditLogs";
+import AdminSettings from "../components/admin/AdminSettings";
 import Quotes from "../pages/Dashboard/Quotes";
 import QuoteDetail from "../pages/Dashboard/QuoteDetail";
 import Products from "../pages/Dashboard/Products";
@@ -82,6 +88,7 @@ const App = () => (
         <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="/reset-password" element={<Navigate to="/login" replace />} />
         <Route path="/admin-login" element={<ErrorBoundary><AdminLogin /></ErrorBoundary>} />
+        <Route path="/invite/accept" element={<ErrorBoundary><AcceptInvite /></ErrorBoundary>} />
 
         <Route element={<RequireAuth><ErrorBoundary><DashboardLayout /></ErrorBoundary></RequireAuth>}>
           <Route path="/dashboard" element={<Dashboard />} />
@@ -160,12 +167,31 @@ const App = () => (
           <Route path="/settings/sessions" element={<Sessions />} />
           <Route path="/settings/2fa" element={<TwoFactor />} />
 
-          <Route path="/admin-dashboard" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
-          <Route path="/admin" element={<Navigate to="/admin-dashboard" replace />} />
-
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/Maindashboard" element={<Navigate to="/dashboard" replace />} />
         </Route>
+
+        {/* Admin Dashboard with nested sub-pages */}
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <ErrorBoundary>
+                <RequireAdmin>
+                  <AdminDashboard />
+                </RequireAdmin>
+              </ErrorBoundary>
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<AdminMainLayout />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="server-health" element={<AdminServerHealth />} />
+          <Route path="audit-logs" element={<AdminAuditLogs />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
+        <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -194,13 +220,17 @@ const RequireAdmin = ({ children }) => {
 };
 
 const RootRedirect = () => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
       <div className="h-12 w-12 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" />
     </div>
   );
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) {
+    // Role-based redirect: ADMIN users go to admin dashboard
+    if (user?.role === "ADMIN") return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to="/dashboard" replace />;
+  }
   return <ErrorBoundary><Landing /></ErrorBoundary>;
 };
 

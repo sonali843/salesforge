@@ -41,6 +41,11 @@ export const orgStore = {
   set: (o) => localStorage.setItem(ORG_KEY, JSON.stringify(o)),
 };
 
+export function clearAuthState() {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('user');
+}
+
 // Attach the bearer token and a request id to every request.
 api.interceptors.request.use((config) => {
   const token = tokenStore.get();
@@ -63,7 +68,13 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const data = error.response?.data || {};
     const requestUrl = error.config?.url || "";
-    const isAuthRequest = requestUrl.includes("/auth/");
+    // Treat both /auth/* and /admin/login as auth requests — don't nuke tokens on login failures
+    const isAuthRequest = requestUrl.includes("/auth/") || requestUrl.includes("/admin/login");
+    // Don't redirect if the user is currently on any admin page
+    const isOnAdminPage = typeof window !== "undefined" && (
+      window.location.pathname.startsWith("/admin") ||
+      window.location.pathname.startsWith("/admin-login")
+    );
 
     if (status === 401 && !isAuthRequest) {
       tokenStore.clear();
@@ -77,7 +88,8 @@ api.interceptors.response.use(
 
       if (
         typeof window !== "undefined" &&
-        !window.location.pathname.startsWith("/login")
+        !window.location.pathname.startsWith("/login") &&
+        !isOnAdminPage
       ) {
         window.location.href = "/login";
       }

@@ -1,44 +1,95 @@
-import React, { useState } from "react";
-import { Loader2, ShieldCheck, XCircle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Loader2, ShieldCheck, XCircle, Mail, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
+import { api, tokenStore } from "../../lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
+  const { refresh, isAuthenticated, loading, user } = useAuth();
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      if (user?.role === "ADMIN") {
+        navigate("/admin/dashboard", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    }
+  }, [isAuthenticated, loading, navigate, user]);
+
+  const handleLoginSuccess = async (responsePayload) => {
+    const data = responsePayload.data || responsePayload;
+    const token = data.token;
+    const responseUser = data.user;
+
+    if (token) tokenStore.set(token);
+
+    localStorage.setItem("isLoggedIn", "true");
+    if (responseUser?.email) localStorage.setItem("adminEmail", responseUser.email);
+    if (responseUser?.role) localStorage.setItem("userRole", responseUser.role);
+
+    // refresh() calls /auth/me — if it fails for admin users (e.g. no org),
+    // still navigate based on the login response's role data.
+    let finalRole = responseUser?.role;
+    try {
+      const authData = await refresh();
+      if (authData?.user?.role) finalRole = authData.user.role;
+    } catch (err) {
+      console.warn("[AdminLogin] refresh() failed, using login response role:", err?.message);
+    }
+
+    if (finalRole === "ADMIN") {
+      navigate("/admin/dashboard", { replace: true });
+    } else {
+      navigate("/dashboard", { replace: true });
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!email || !password) {
+      setError("Please fill in both email and password.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await api.post("/admin/login", { email, password });
+      await handleLoginSuccess(res.data);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Access Denied. You must be an administrator.";
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setError("");
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential })
+      const res = await api.post("/admin/login", {
+        credential: credentialResponse.credential,
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // ✅ SUCCESS
-        const token = data.data.token;
-        const user = data.data.user;
-        
-        localStorage.setItem("adminToken", token);
-        localStorage.setItem("isLoggedIn", "true"); 
-        localStorage.setItem("adminEmail", user.email);
-        localStorage.setItem("userRole", user.role); 
-
-        navigate("/admin-dashboard");
-      } else {
-        // ❌ FAILURE
-        setError(data.message || data.error || "Access Denied. You must be an administrator.");
-      }
+      await handleLoginSuccess(res.data);
     } catch (err) {
-      setError("Could not connect to the backend server.");
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Access Denied. You must be an administrator.";
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -49,7 +100,7 @@ const AdminLogin = () => {
       <div className="hidden md:block w-1/3 h-screen relative p-0 m-0 overflow-hidden">
         <button
           onClick={() => navigate("/")}
-          className="absolute top-6 left-6 z-20 text-white hover:text-gray-300 flex items-center gap-2 font-medium transition-colors"
+          className="absolute top-6 left-6 z-20 text-white hover:text-gray-300 flex items-center gap-2 font-medium transition-colors cursor-pointer"
         >
           ← Back
         </button>
@@ -67,7 +118,7 @@ const AdminLogin = () => {
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
               <ShieldCheck className="w-8 h-8 text-slate-800" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 tracking-widest">ADMIN PORTAL</h2>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-widest">ADMIN LOGIN</h2>
             <p className="text-slate-500 text-sm mt-1">Secure Management Gateway</p>
           </div>
 
@@ -78,25 +129,78 @@ const AdminLogin = () => {
               </p>
             )}
 
-            <div className="flex flex-col items-center justify-center space-y-4">
-              {isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Loader2 className="w-5 h-5 animate-spin" /> Verifying...
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Admin Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                  />
                 </div>
-              ) : (
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError("Google Authentication failed.")}
-                  theme="outline"
-                  size="large"
-                  text="continue_with"
-                  width="100%"
-                />
-              )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-slate-900 text-white font-medium py-3 rounded-xl hover:bg-slate-800 focus:ring-4 focus:ring-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> Verifying...
+                  </>
+                ) : (
+                  "Access Dashboard"
+                )}
+              </button>
+            </form>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-3 text-slate-400">Or continue with</span>
+              </div>
             </div>
 
-            <p className="text-center text-xs text-slate-400 pt-6">
-              Unauthorized access is strictly prohibited.
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError("Google Authentication failed.")}
+                theme="outline"
+                size="large"
+                text="continue_with"
+                width="280"
+              />
+            </div>
+
+            <p className="text-center text-xs text-slate-400 pt-4">
+              Unauthorized access is prohibited.
             </p>
           </div>
         </div>
