@@ -3,14 +3,17 @@ const { AppError } = require("../middleware/errorHandler");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { getPlan, currentPeriod, checkLimit } = require("../utils/planLimits");
-const { createInAppNotification } = require("../services/notificationService");
+const { dispatchNotification } = require("../services/notificationService");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+let razorpay = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+}
 
 const PLAN_PRICING = {
   FREE: { monthly: 0, yearly: 0, features: ["Up to 100 leads", "Basic search tools", "1 team member"] },
@@ -53,7 +56,11 @@ const listPlans = asyncHandler(async (req, res) => {
 // user already has a row (e.g. they switched workspaces), we transfer/update
 // that existing row to the current org + plan instead of trying to insert a
 // second row for the same userId, which used to throw a Prisma P2002 error.
-const activatePlan = async ({ userId, orgId, plan, interval, price, paymentRef }) => {
+//
+// `status` is passed in by the caller based on what Razorpay actually reports
+// (see verifyPayment below) — never hardcoded here, so a genuinely pending or
+// failed payment can never masquerade as SUCCEEDED.
+const activatePlan = async ({ userId, orgId, plan, interval, price, paymentRef, status = "SUCCEEDED" }) => {
   const start = new Date();
   const end = new Date(start);
   if (interval === "yearly") end.setFullYear(end.getFullYear() + 1);
@@ -75,14 +82,14 @@ const activatePlan = async ({ userId, orgId, plan, interval, price, paymentRef }
   if (price > 0) {
     await prisma.payment.create({
       data: {
-        userId, orgId, amount: price, currency: "INR", status: "SUCCEEDED",
+        userId, orgId, amount: price, currency: "INR", status,
         description: `${plan} (${interval})`,
         stripePaymentId: paymentRef, // reused as a generic external payment-gateway reference id
       },
     });
   }
 
-  await createInAppNotification({
+  await dispatchNotification({
     userId,
     orgId,
     type: "BILLING_UPDATE",
@@ -107,15 +114,18 @@ const createOrder = asyncHandler(async (req, res) => {
     return response.success(res, { contactSales: true, message: "Our team will reach out to set up Enterprise." });
   }
   if (price === 0) {
-    const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price: 0, paymentRef: null });
+    const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price: 0, paymentRef: null, status: "SUCCEEDED" });
     return response.success(res, { free: true, subscription: sub });
   }
+
+  if (!razorpay) throw new AppError("Payment gateway is not configured.", 500);
 
   const amountPaise = Math.round(price * 100); // Razorpay amounts are in the smallest currency unit
   const order = await razorpay.orders.create({
     amount: amountPaise,
     currency: "INR",
     receipt: `org_${req.orgId}_${Date.now()}`,
+    payment_capture: 1, // auto-capture on success instead of leaving it authorized-only
     notes: { plan, interval, orgId: String(req.orgId), userId: String(req.user.id) },
   });
 
@@ -130,8 +140,11 @@ const createOrder = asyncHandler(async (req, res) => {
 });
 
 // Step 2: verify the signature Razorpay's checkout returns after a successful
-// payment, then activate the plan. Never trust the frontend's word alone that
-// a payment succeeded — the HMAC signature is the only proof that's real.
+// payment, then check the REAL status of that payment with Razorpay before
+// deciding what to record. Signature match only proves the frontend relayed
+// genuine Razorpay-issued IDs — it does NOT prove the money was captured.
+// UPI/netbanking payments in particular can come back "pending" rather than
+// instantly captured, and some flows land as "authorized" not "captured".
 const verifyPayment = asyncHandler(async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, interval = "monthly" } = req.body;
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -147,7 +160,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
     .digest("hex");
 
   if (expectedSignature !== razorpay_signature) {
-    await createInAppNotification({
+    await dispatchNotification({
       userId: req.user.id,
       orgId: req.orgId,
       type: "PAYMENT_FAILED",
@@ -158,18 +171,55 @@ const verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Payment verification failed. Signature mismatch.", 400);
   }
 
-  const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price, paymentRef: razorpay_payment_id });
+  if (!razorpay) throw new AppError("Payment gateway is not configured.", 500);
 
-  await createInAppNotification({
-    userId: req.user.id,
-    orgId: req.orgId,
-    type: "PAYMENT_RECEIVED",
-    category: "billing",
-    message: `Payment of $${price} received successfully.`,
-    link: "/app/settings/billing",
+  const payment = await razorpay.payments.fetch(razorpay_payment_id);
+
+  if (payment.status === "captured") {
+    const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price, paymentRef: razorpay_payment_id, status: "SUCCEEDED" });
+    await dispatchNotification({
+      userId: req.user.id, orgId: req.orgId, type: "PAYMENT_RECEIVED", category: "billing",
+      message: `Payment of ₹${price} received successfully.`, link: "/app/settings/billing",
+    });
+    return response.success(res, { subscription: sub, charged: price, status: "SUCCEEDED" });
+  }
+
+  if (payment.status === "authorized") {
+    // Auto-capture (payment_capture: 1 on the order) should normally handle
+    // this, but capture explicitly as a fallback in case it didn't.
+    const captured = await razorpay.payments.capture(razorpay_payment_id, Math.round(price * 100), "INR");
+    if (captured.status === "captured") {
+      const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price, paymentRef: razorpay_payment_id, status: "SUCCEEDED" });
+      await dispatchNotification({
+        userId: req.user.id, orgId: req.orgId, type: "PAYMENT_RECEIVED", category: "billing",
+        message: `Payment of ₹${price} received successfully.`, link: "/app/settings/billing",
+      });
+      return response.success(res, { subscription: sub, charged: price, status: "SUCCEEDED" });
+    }
+  }
+
+  if (payment.status === "failed") {
+    await prisma.payment.create({
+      data: { userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "FAILED", description: `${plan} (${interval})`, stripePaymentId: razorpay_payment_id },
+    });
+    await dispatchNotification({
+      userId: req.user.id, orgId: req.orgId, type: "PAYMENT_FAILED", category: "billing",
+      message: `Payment of ₹${price} failed.`, link: "/app/settings/billing",
+    });
+    throw new AppError("Payment failed. Please try again.", 400);
+  }
+
+  // Anything else (created / pending) — record it honestly as pending and do
+  // NOT activate the plan yet. A real production app would confirm this via
+  // a Razorpay webhook later; here we just reflect the true current status.
+  await prisma.payment.create({
+    data: { userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "PENDING", description: `${plan} (${interval})`, stripePaymentId: razorpay_payment_id },
   });
-
-  return response.success(res, { subscription: sub, charged: price });
+  await dispatchNotification({
+    userId: req.user.id, orgId: req.orgId, type: "BILLING_UPDATE", category: "billing",
+    message: `Payment of ₹${price} is still processing.`, link: "/app/settings/billing",
+  });
+  return response.success(res, { status: "PENDING", message: "Payment is still processing. We'll update your plan once it's confirmed." });
 });
 
 const cancel = asyncHandler(async (req, res) => {
@@ -210,7 +260,9 @@ const usage = asyncHandler(async (req, res) => {
   const limits = getPlan(plan);
   const summary = {};
   for (const [resource, limit] of Object.entries(limits)) {
-    const used = records.find((r) => r.resource === resource)?.count || 0;
+    const used = records
+      .filter((r) => r.resource === resource)
+      .reduce((sum, r) => sum + r.count, 0);
     const check = checkLimit(plan, resource, used);
     summary[resource] = { used, limit: check.limit, allowed: check.allowed };
   }
@@ -229,16 +281,57 @@ const createInvoice = asyncHandler(async (req, res) => {
     }
   });
 
-  await createInAppNotification({
+  await dispatchNotification({
     userId: req.user.id,
     orgId: req.orgId,
     type: "INVOICE_CREATED",
     category: "billing",
-    message: `New invoice #${invoice.number} created for $${amount}.`,
+    message: `New invoice #${invoice.number} created for ₹${amount}.`,
     link: "/app/settings/billing",
   });
 
   return response.created(res, invoice);
 });
 
-module.exports = { getCurrentSubscription, listPlans, createOrder, verifyPayment, cancel, listPayments, usage, createInvoice, PLAN_PRICING };
+const clearPaymentHistory = asyncHandler(async (req, res) => {
+  const result = await prisma.payment.deleteMany({ where: { orgId: req.orgId } });
+  return response.success(res, { deleted: result.count });
+});
+
+// Razorpay's checkout never calls the success handler (and therefore never
+// hits verifyPayment) when a payment genuinely fails — it fires a separate
+// client-side `payment.failed` event instead. Without this endpoint, real
+// failures (declined cards, unsupported card types, etc.) would silently
+// vanish with nothing recorded in Payment History.
+const recordFailedPayment = asyncHandler(async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, plan, interval = "monthly", reason } = req.body;
+  if (!razorpay_order_id) throw new AppError("Missing order id.", 400);
+  if (!PLAN_PRICING[plan]) throw new AppError("Invalid plan.", 400);
+  const price = PLAN_PRICING[plan][interval];
+  if (price === null || price === undefined) throw new AppError("Invalid plan/interval.", 400);
+  if (!razorpay) throw new AppError("Payment gateway is not configured.", 500);
+
+  // Confirm this order actually belongs to this org before logging, so a
+  // client can't spam arbitrary failed-payment rows for other orgs.
+  const order = await razorpay.orders.fetch(razorpay_order_id);
+  if (String(order?.notes?.orgId) !== String(req.orgId)) {
+    throw new AppError("Order does not belong to this organization.", 403);
+  }
+
+  await prisma.payment.create({
+    data: {
+      userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "FAILED",
+      description: `${plan} (${interval})${reason ? " — " + reason : ""}`,
+      stripePaymentId: razorpay_payment_id || razorpay_order_id,
+    },
+  });
+
+  await dispatchNotification({
+    userId: req.user.id, orgId: req.orgId, type: "PAYMENT_FAILED", category: "billing",
+    message: `Payment of ₹${price} failed${reason ? ": " + reason : "."}`, link: "/app/settings/billing",
+  });
+
+  return response.success(res, { recorded: true });
+});
+
+module.exports = { getCurrentSubscription, listPlans, createOrder, verifyPayment, recordFailedPayment, cancel, listPayments, usage, createInvoice, clearPaymentHistory, PLAN_PRICING };

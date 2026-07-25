@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
 
 const { prisma } = require("../config/postgres");
-const { createInAppNotification } = require("../services/notificationService");
+const { dispatchNotification } = require("../services/notificationService");
 const generateToken = require("../utils/generateToken");
 const { sendResetEmail, sendVerificationEmail, sendEmail } = require("../utils/sendEmail");
 const asyncHandler = require("../utils/asyncHandler");
@@ -67,6 +67,27 @@ const acceptPendingInviteForUser = async (userId, email) => {
       // Continue - one bad invite shouldn't block auth.
     }
   }
+};
+
+// ---------------------------------------------------------------------------
+// Seed default notification preferences for a newly registered user.
+// Creates 15 rows: 5 categories × 3 channels, all enabled by default.
+// ---------------------------------------------------------------------------
+const NOTIFICATION_CATEGORIES = ["lead", "deal", "billing", "team", "system"];
+const NOTIFICATION_CHANNELS = ["in_app", "email", "push"];
+
+const seedDefaultPreferences = async (userId, orgId = null) => {
+  const rows = [];
+  for (const category of NOTIFICATION_CATEGORIES) {
+    for (const channel of NOTIFICATION_CHANNELS) {
+      rows.push({ userId, orgId, channel, category, enabled: true });
+    }
+  }
+  // Use createMany with skipDuplicates so re-running is safe.
+  await prisma.notificationPreference.createMany({
+    data: rows,
+    skipDuplicates: true,
+  });
 };
 
 const register = asyncHandler(async (req, res) => {
@@ -152,6 +173,10 @@ const register = asyncHandler(async (req, res) => {
   // Auto-accept any other pending invites matching this email.
   await acceptPendingInviteForUser(user.id, user.email);
 
+  // Seed default notification preferences (5 categories × 3 channels = 15 rows, all enabled).
+  const finalUser = await prisma.user.findUnique({ where: { id: user.id } });
+  await seedDefaultPreferences(user.id, finalUser.organizationId);
+
   if (user.organizationId) {
     await prisma.subscription.upsert({
       where: { orgId: user.organizationId },
@@ -166,7 +191,7 @@ const register = asyncHandler(async (req, res) => {
     });
   }
 
-  await createInAppNotification({
+  await dispatchNotification({
     userId: user.id,
     orgId: user.organizationId,
     type: "WELCOME",
@@ -212,7 +237,7 @@ const login = asyncHandler(async (req, res) => {
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
-  await createInAppNotification({
+  await dispatchNotification({
     userId: user.id,
     orgId: user.organizationId,
     type: "LOGIN",
@@ -269,7 +294,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   });
   // Invalidate all existing sessions on password change.
   await prisma.session.deleteMany({ where: { userId: updated.id } });
-  await createInAppNotification({
+  await dispatchNotification({
     userId: updated.id,
     orgId: updated.organizationId,
     type: "PASSWORD_RESET",
@@ -523,6 +548,9 @@ const googleLogin = asyncHandler(async (req, res) => {
     await prisma.orgMembership.create({
       data: { userId: user.id, orgId: org.id, role: "OWNER" },
     });
+
+    // Seed default notification preferences for the new Google user.
+    await seedDefaultPreferences(user.id, org.id);
   }
 
   const session = await sessionService.createSession({

@@ -1,6 +1,6 @@
 const { prisma } = require("../config/postgres");
 const { AppError } = require("../middleware/errorHandler");
-const { createInAppNotification } = require("../services/notificationService");
+const { dispatchNotification } = require("../services/notificationService");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { recordAudit } = require("../services/auditService");
@@ -84,10 +84,13 @@ const listDeals = asyncHandler(async (req, res) => {
   if (stage) where.stageId = Number(stage);
   if (status) where.status = status;
   if (search) {
+    const numSearch = Number(search);
     where.OR = [
       { title: { contains: search, mode: "insensitive" } },
-      { amount: { not: null } },
     ];
+    if (!isNaN(numSearch)) {
+      where.OR.push({ amount: numSearch });
+    }
   }
   const skip = (Number(page) - 1) * Number(limit);
   const [deals, total] = await Promise.all([
@@ -165,7 +168,13 @@ const createDeal = asyncHandler(async (req, res) => {
   });
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "deal.create", entityType: "Deal", entityId: deal.id, metadata: { amount, title } });
   await publish({ orgId: req.orgId, event: "DEAL_CREATED", payload: { dealId: deal.id, title, amount } });
-  await createInAppNotification({
+  // ---------------------------------------------------------------------------
+  // NOTIFICATION: Always notify the AUTHENTICATED USER who triggered this event.
+  // userId must come from req.user.id (verified JWT session) — never from
+  // req.body or deal.ownerId. The user's own preference toggles determine
+  // whether they receive in-app, email, or push notifications.
+  // ---------------------------------------------------------------------------
+  await dispatchNotification({
     userId: req.user.id,
     orgId: req.orgId,
     type: "DEAL_CREATED",
@@ -208,13 +217,29 @@ const updateDeal = asyncHandler(async (req, res) => {
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "deal.update", entityType: "Deal", entityId: deal.id, metadata: data });
   await publish({ orgId: req.orgId, event: "DEAL_UPDATED", payload: { dealId: deal.id } });
   
+  const targetUserId = updated.ownerId ? updated.ownerId : req.user.id;
+  
+  // Notify if stage changed
   if (req.body.stageId !== undefined && deal.stageId !== req.body.stageId) {
-    await createInAppNotification({
-      userId: req.user.id,
+    if (targetUserId !== req.user.id || !updated.ownerId) {
+      await dispatchNotification({
+        userId: targetUserId,
+        orgId: req.orgId,
+        type: "DEAL_UPDATED",
+        category: "deal",
+        message: `Deal "${updated.title}" moved to ${updated.stageRef.name} by ${req.user.name || 'someone'}.`,
+        link: `/app/deals/${updated.id}`,
+        metadata: { dealId: updated.id }
+      });
+    }
+  } else if (Object.keys(data).length > 0 && (targetUserId !== req.user.id || !updated.ownerId)) {
+    // Notify if other updates happened
+    await dispatchNotification({
+      userId: targetUserId,
       orgId: req.orgId,
       type: "DEAL_UPDATED",
       category: "deal",
-      message: `Deal "${updated.title}" moved to ${updated.stageRef.name}.`,
+      message: `Deal "${updated.title}" was updated by ${req.user.name || 'someone'}.`,
       link: `/app/deals/${updated.id}`,
       metadata: { dealId: updated.id }
     });
@@ -242,6 +267,16 @@ const moveDeal = asyncHandler(async (req, res) => {
     include: { stageRef: true },
   });
   await publish({ orgId: req.orgId, event: "DEAL_STAGE_CHANGED", payload: { dealId: deal.id, stage: stage.name } });
+  const dealType = stage.isWon ? "DEAL_WON" : stage.isLost ? "DEAL_LOST" : "DEAL_STAGE_CHANGED";
+  await dispatchNotification({
+    userId: req.user.id,
+    orgId: req.orgId,
+    type: dealType,
+    category: "deal",
+    message: `Deal "${deal.title || 'Deal'}" moved to stage "${stage.name}".`,
+    link: `/app/deals/${deal.id}`,
+    metadata: { dealId: deal.id, dealTitle: deal.title, amount: updated.amount },
+  });
   return response.success(res, updated);
 });
 
@@ -261,7 +296,7 @@ const kanbanView = asyncHandler(async (req, res) => {
     orderBy: { position: "asc" },
   });
   const deals = await prisma.deal.findMany({
-    where: { orgId: req.orgId, status: "ACTIVE" },
+    where: { orgId: req.orgId },
     orderBy: { position: "asc" },
     include: {
       startups: { include: { org: true } },
