@@ -11,5 +11,6 @@ router.get("/", ctrl.listNotifications);
 router.patch("/read-all", ctrl.readAllNotifications);
 router.patch("/:id/read", ctrl.readNotification);
 router.post("/broadcast", permit("OWNER", "ADMIN"), ctrl.broadcast);
+router.post("/test-email", ctrl.testEmail);
 
 module.exports = router;

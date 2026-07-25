@@ -1,5 +1,5 @@
 const { prisma } = require("../config/postgres");
-const { createInAppNotification } = require("../services/notificationService");
+const { dispatchNotification } = require("../services/notificationService");
 const { updateLeadScore } = require("../services/leadScoringService");
 const { recordActivity, diffLead, summarizeChanges } = require("../services/leadActivityService");
 const asyncHandler = require("../utils/asyncHandler");
@@ -83,15 +83,26 @@ const createLead = asyncHandler(async (req, res) => {
   });
   await updateLeadScore(lead.id);
   const updated = await prisma.lead.findUnique({ where: { id: lead.id }, include: LEAD_INCLUDE });
-  await createInAppNotification({
+  
+  // ---------------------------------------------------------------------------
+  // NOTIFICATION: Always notify the AUTHENTICATED USER who triggered this event.
+  // userId must come from req.user.id (verified JWT session) — never from
+  // req.body.userId or any client-supplied field. The user's own preference
+  // toggles determine whether they receive in-app, email, or push notifications.
+  // ---------------------------------------------------------------------------
+  await dispatchNotification({
     userId: req.user.id,
     orgId: req.orgId,
     type: "LEAD_CREATED",
     category: "lead",
     message: `Lead ${lead.name} added to your pipeline.`,
     link: `/app/leads/${lead.id}`,
-    metadata: { leadId: lead.id },
+    metadata: { leadId: lead.id, leadName: lead.name },
   });
+  // TODO: Add similar dispatchNotification calls for:
+  //   - BILLING category: in billingController after payment/invoice events
+  //   - TEAM category:    in teamController after invite/join/role-change events
+  //   - SYSTEM category:  in adminController for system-wide alerts
   await recordActivity({
     leadId: lead.id,
     userId: req.user.id,
@@ -218,6 +229,22 @@ const updateLead = asyncHandler(async (req, res) => {
   });
   await publish({ orgId: req.orgId, event: "LEAD_UPDATED", payload: { leadId: lead.id } });
 
+  if (changes.length > 0) {
+    const targetUserId = lead.ownerId ? lead.ownerId : req.user.id;
+    // Don't notify the user if they made the change themselves, unless they are the only one to notify
+    if (targetUserId !== req.user.id || !lead.ownerId) {
+      await dispatchNotification({
+        userId: targetUserId,
+        orgId: req.orgId,
+        type: "LEAD_UPDATED",
+        category: "lead",
+        message: `Lead ${lead.name} was updated by ${req.user.name}.`,
+        link: `/app/leads/${lead.id}`,
+        metadata: { leadId: lead.id, leadName: lead.name, changes: changes.map(c => c.field) },
+      });
+    }
+  }
+
   const refreshed = await prisma.lead.findUnique({ where: { id: lead.id }, include: LEAD_INCLUDE });
   return response.success(res, refreshed);
 });
@@ -235,6 +262,15 @@ const deleteLead = asyncHandler(async (req, res) => {
     metadata: { name: lead.name },
   });
   await publish({ orgId: req.orgId, event: "LEAD_DELETED", payload: { leadId: lead.id, name: lead.name } });
+  await dispatchNotification({
+    userId: req.user.id,
+    orgId: req.orgId,
+    type: "LEAD_DELETED",
+    category: "lead",
+    message: `Lead ${lead.name} was deleted.`,
+    link: "/app/leads",
+    metadata: { leadId: lead.id, leadName: lead.name },
+  });
   return response.success(res, { message: "Lead deleted." });
 });
 

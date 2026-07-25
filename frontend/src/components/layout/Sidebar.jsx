@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import "./sidebar.css";
 
 const NAV = [
+  { name: "Admin Portal", icon: Shield, path: "/admin-dashboard", adminOnly: true },
   { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { name: "Insights", icon: BarChart3, path: "/insights" },
   { name: "Leads", icon: Briefcase, path: "/leads" },
