@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { billingService } from "@/services";
 import { useUptoStyles, UptoPage, UptoHero, UptoSectionHeading, UptoButton, UptoBadge, UptoSpinner, UptoError, UptoCard } from "@/components/UI/UptoHooks";
-import { Check, CreditCard, Sparkles, ShieldCheck, Zap, Building2 } from "lucide-react";
+import { Check, CreditCard, Sparkles, ShieldCheck, Zap, Building2, Smartphone, Landmark, Wallet, Loader2, CircleCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const PLANS = [
@@ -9,6 +9,13 @@ const PLANS = [
   { id: "STARTER", name: "Starter", icon: Zap, price: { monthly: 29, yearly: 290 }, recommended: true, blurb: "For small teams getting serious about lead generation.", features: ["Up to 1,000 leads", "5 team members", "All search tools", "API access", "Email support"] },
   { id: "PRO", name: "Pro", icon: ShieldCheck, price: { monthly: 99, yearly: 990 }, blurb: "For growing teams that need automation and integrations.", features: ["Up to 10,000 leads", "25 team members", "Webhooks", "Saved searches", "Priority support", "Custom domains"] },
   { id: "ENTERPRISE", name: "Enterprise", icon: Building2, price: { monthly: null, yearly: null }, blurb: "Unlimited everything with a dedicated success manager.", features: ["Unlimited leads", "Unlimited members", "SSO & SAML", "SLA", "Dedicated CSM", "On-prem option"] },
+];
+
+// Steps shown in the live checkout progress tracker.
+const CHECKOUT_STEPS = [
+  { key: "creating_order", label: "Creating order" },
+  { key: "awaiting_razorpay", label: "Waiting in Razorpay" },
+  { key: "verifying", label: "Verifying payment" },
 ];
 
 const Billing = () => {
@@ -22,6 +29,7 @@ const Billing = () => {
   const [usageHistory, setUsageHistory] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [payingPlan, setPayingPlan] = useState(null);
+  const [checkoutStep, setCheckoutStep] = useState(null); // one of CHECKOUT_STEPS[].key, or null
   const paymentSectionRef = useRef(null);
 
   useEffect(() => {
@@ -80,18 +88,21 @@ const Billing = () => {
   const checkout = async (plan) => {
     setBusy(true);
     setPayingPlan(plan);
+    setCheckoutStep("creating_order");
     try {
       const order = await billingService.createOrder({ plan, interval });
 
       if (order.contactSales) {
         toast.info("Our team will reach out to set up Enterprise.");
         setPayingPlan(null);
+        setCheckoutStep(null);
         return;
       }
       if (order.free) {
         toast.success(`Switched to ${plan}`);
         await load();
         setPayingPlan(null);
+        setCheckoutStep(null);
         return;
       }
 
@@ -99,6 +110,7 @@ const Billing = () => {
       if (!scriptLoaded) {
         toast.error("Could not load the payment gateway. Check your connection and try again.");
         setPayingPlan(null);
+        setCheckoutStep(null);
         return;
       }
 
@@ -110,32 +122,59 @@ const Billing = () => {
         description: `${plan} plan (${interval})`,
         order_id: order.orderId,
         theme: { color: "#00b5ad" },
+        // Deliberately no custom `config.display` here — Razorpay's own
+        // default checkout already properly surfaces Cards, UPI (ID entry,
+        // QR, and app intents), Netbanking, Wallets, Pay Later, and EMI when
+        // left alone. Hand-configuring the layout is fragile and previously
+        // caused a broken, duplicated UI.
         handler: async (resp) => {
+          setCheckoutStep("verifying");
           try {
-            await billingService.verifyPayment({
+            const result = await billingService.verifyPayment({
               razorpay_order_id: resp.razorpay_order_id,
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
               plan, interval,
             });
-            toast.success(`Subscribed to ${plan} (${interval})`);
+            if (result.status === "PENDING") {
+              toast.info(result.message || "Payment is still processing.");
+            } else {
+              toast.success(`Subscribed to ${plan} (${interval})`);
+            }
             await load();
           } catch (e) {
             toast.error(e.message || "Payment verification failed");
           } finally {
             setPayingPlan(null);
+            setCheckoutStep(null);
           }
         },
-        modal: { ondismiss: () => setPayingPlan(null) },
+        modal: {
+          ondismiss: () => { setPayingPlan(null); setCheckoutStep(null); },
+        },
       });
-      rzp.on("payment.failed", (resp) => {
+      rzp.on("payment.failed", async (resp) => {
         toast.error(resp.error?.description || "Payment failed");
+        try {
+          await billingService.recordFailedPayment({
+            razorpay_order_id: resp.error?.metadata?.order_id,
+            razorpay_payment_id: resp.error?.metadata?.payment_id,
+            plan, interval,
+            reason: resp.error?.description,
+          });
+          await load();
+        } catch {
+          // Best-effort logging — don't block the UI if this call fails too.
+        }
         setPayingPlan(null);
+        setCheckoutStep(null);
       });
+      setCheckoutStep("awaiting_razorpay");
       rzp.open();
     } catch (e) {
       toast.error(e.message || "Checkout failed");
       setPayingPlan(null);
+      setCheckoutStep(null);
     } finally {
       setBusy(false);
     }
@@ -147,8 +186,19 @@ const Billing = () => {
     catch (e) { toast.error(e.message); }
   };
 
+  const clearHistory = async () => {
+    if (!confirm("Delete all payment history for this organization? This cannot be undone.")) return;
+    try {
+      await billingService.clearPayments();
+      toast.success("Payment history cleared");
+      await load();
+    } catch (e) { toast.error(e.message || "Failed to clear history"); }
+  };
+
   if (loading) return <UptoSpinner />;
   if (error) return <UptoError error={error} onRetry={load} />;
+
+  const currentStepIndex = CHECKOUT_STEPS.findIndex((step) => step.key === checkoutStep);
 
   return (
     <UptoPage>
@@ -226,10 +276,15 @@ const Billing = () => {
   </UptoCard>
 </section>
 <section>
-  <UptoSectionHeading
-    label="Payment History"
-    darkMode={darkMode}
-  />
+  <div className="flex items-center justify-between">
+    <UptoSectionHeading
+      label="Payment History"
+      darkMode={darkMode}
+    />
+    {paymentHistory.length > 0 && (
+      <UptoButton variant="danger" onClick={clearHistory}>Clear history</UptoButton>
+    )}
+  </div>
 
   <UptoCard>
 
@@ -264,11 +319,19 @@ const Billing = () => {
               </td>
 
               <td className="py-2">
-                ${payment.amount}
+                ₹{payment.amount}
               </td>
 
               <td className="py-2">
-                {payment.status}
+                {payment.status === "FAILED" ? (
+                  <span className="inline-flex items-center rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-semibold text-red-500">
+                    FAILED
+                  </span>
+                ) : (
+                  <UptoBadge tone={payment.status === "SUCCEEDED" ? "success" : "warning"}>
+                    {payment.status}
+                  </UptoBadge>
+                )}
               </td>
 
             </tr>
@@ -287,15 +350,37 @@ const Billing = () => {
       {payingPlan && (
         <section ref={paymentSectionRef}>
           <UptoCard>
-            <div className="flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3">
               <CreditCard className="h-6 w-6 shrink-0 text-[#00b5ad]" />
               <div>
                 <p className={`font-semibold ${s.heading}`}>Completing payment for {payingPlan}</p>
                 <p className={`text-sm ${s.subtext}`}>
                   A secure Razorpay payment window should be open — pay by card, UPI, or netbanking there.
-                  This page will update automatically once your payment is confirmed.
                 </p>
               </div>
+            </div>
+            <div className="flex items-center">
+              {CHECKOUT_STEPS.map((step, i) => {
+                const done = currentStepIndex > i;
+                const active = currentStepIndex === i;
+                return (
+                  <React.Fragment key={step.key}>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors ${
+                        done ? "border-[#00b5ad] bg-[#00b5ad] text-white"
+                        : active ? "border-[#00b5ad] text-[#00b5ad]"
+                        : darkMode ? "border-slate-700 text-slate-600" : "border-slate-300 text-slate-400"
+                      }`}>
+                        {done ? <CircleCheck className="h-4 w-4" /> : active ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="text-xs font-bold">{i + 1}</span>}
+                      </div>
+                      <span className={`text-xs font-medium ${done || active ? s.heading : s.subtext}`}>{step.label}</span>
+                    </div>
+                    {i < CHECKOUT_STEPS.length - 1 && (
+                      <div className={`mx-2 mb-5 h-0.5 flex-1 rounded ${currentStepIndex > i ? "bg-[#00b5ad]" : darkMode ? "bg-slate-700" : "bg-slate-200"}`} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
           </UptoCard>
         </section>
@@ -313,6 +398,7 @@ const Billing = () => {
             const Icon = plan.icon;
             const isCurrent = sub?.plan === plan.id;
             const price = plan.price[interval];
+            const isPaidPlan = price !== null && price > 0;
             return (
               <div key={plan.id} className={`relative flex flex-col rounded-2xl border p-5 transition-colors ${s.card} ${plan.recommended ? `ring-2 ring-[#00b5ad]` : ""} ${isCurrent ? "ring-2 ring-emerald-500" : ""}`}>
                 {plan.recommended && (
@@ -330,7 +416,7 @@ const Billing = () => {
                     <p className={`text-2xl font-bold ${s.heading}`}>Custom</p>
                   ) : (
                     <p className={`text-2xl font-bold ${s.heading}`}>
-                      ${price}<span className={`ml-1 text-sm font-normal ${s.subtext}`}>/{interval === "monthly" ? "mo" : "yr"}</span>
+                      ₹{price}<span className={`ml-1 text-sm font-normal ${s.subtext}`}>/{interval === "monthly" ? "mo" : "yr"}</span>
                     </p>
                   )}
                 </div>
@@ -341,6 +427,15 @@ const Billing = () => {
                     </li>
                   ))}
                 </ul>
+                {isPaidPlan && (
+                  <div className={`mb-4 flex items-center gap-2 border-t pt-3 ${darkMode ? "border-slate-700" : "border-slate-200"}`}>
+                    <span className={`text-[11px] ${s.subtext}`}>Accepted:</span>
+                    <CreditCard className={`h-3.5 w-3.5 ${s.subtext}`} title="Cards" />
+                    <Smartphone className={`h-3.5 w-3.5 ${s.subtext}`} title="UPI" />
+                    <Landmark className={`h-3.5 w-3.5 ${s.subtext}`} title="Netbanking" />
+                    <Wallet className={`h-3.5 w-3.5 ${s.subtext}`} title="Wallets" />
+                  </div>
+                )}
                 <UptoButton onClick={() => checkout(plan.id)} disabled={busy || isCurrent} variant={isCurrent ? "secondary" : "primary"}>
                   {isCurrent ? "Current plan" : plan.id === "ENTERPRISE" ? "Contact sales" : `Switch to ${plan.name}`}
                 </UptoButton>
