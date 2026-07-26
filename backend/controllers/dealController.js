@@ -84,10 +84,13 @@ const listDeals = asyncHandler(async (req, res) => {
   if (stage) where.stageId = Number(stage);
   if (status) where.status = status;
   if (search) {
+    const numSearch = Number(search);
     where.OR = [
       { title: { contains: search, mode: "insensitive" } },
-      { amount: { not: null } },
     ];
+    if (!isNaN(numSearch)) {
+      where.OR.push({ amount: numSearch });
+    }
   }
   const skip = (Number(page) - 1) * Number(limit);
   const [deals, total] = await Promise.all([
@@ -293,7 +296,7 @@ const kanbanView = asyncHandler(async (req, res) => {
     orderBy: { position: "asc" },
   });
   const deals = await prisma.deal.findMany({
-    where: { orgId: req.orgId, status: "ACTIVE" },
+    where: { orgId: req.orgId },
     orderBy: { position: "asc" },
     include: {
       startups: { include: { org: true } },
