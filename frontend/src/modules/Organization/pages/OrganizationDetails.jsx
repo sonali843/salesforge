@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { MapPin, Users, Link, Loader2, Edit, AlertTriangle, Building2, Globe, Mail, Briefcase, Calendar } from 'lucide-react';
 import OrganizationService from '../services/organizationService';
 import { useTheme } from '../../../context/ThemeContext';
+import { toast } from 'sonner';
 
 // --- UPTOSKILLS BRAND COLORS ---
 const COLORS = {
@@ -237,8 +238,8 @@ const OrganizationDetails = () => {
             const data = await OrganizationService.getOrganizationDetails(id);
             setOrganization(data);
         } catch (err) {
-            setError("Failed to load organization details.");
-            console.error(err);
+            setError(err?.response?.data?.message || err.message || "Failed to load organization details.");
+            toast.error(err?.response?.data?.message || err.message || "Failed to load organization details.");
         } finally {
             setIsLoading(false);
         }

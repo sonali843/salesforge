@@ -3,6 +3,7 @@ import { Search, Plus, Trash2, Edit2, X, AlertTriangle, Loader2, Mail, Globe, Bu
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { api, tokenStore } from '../../../lib/api';
+import { toast } from 'sonner';
 
 // --- BRAND COLORS (light) ---
 const C = {
@@ -232,7 +233,6 @@ const OrganizationsList = () => {
 
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [globalError, setGlobalError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
@@ -257,7 +257,6 @@ const OrganizationsList = () => {
   // 🔥 COMPLETELY REMOVED ABORT CONTROLLER TO FIX FAKE ERROR BANNER
   const fetchOrganizations = useCallback(async () => {
     setLoading(true);
-    setGlobalError(null);
     try {
       const res = await api.get('/organizations', getHeaders());
       const dataArray = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
@@ -271,7 +270,7 @@ const OrganizationsList = () => {
         tokenStore.clear();
         window.location.href = '/login';
       } else {
-        setGlobalError(`Failed to load organizations. Make sure the backend is running.`);
+        toast.error(err?.response?.data?.message || err.message || 'Failed to load organizations');
       }
     } finally {
       setLoading(false);
@@ -301,8 +300,9 @@ const OrganizationsList = () => {
       await fetchOrganizations();
       setIsFormModalOpen(false);
       setEditingOrg(null);
+      toast.success(orgId ? 'Organization updated' : 'Organization created');
     } catch (err) {
-      throw err;
+      toast.error(err?.response?.data?.message || err.message || 'Failed to save organization');
     } finally {
       setIsSubmitting(false);
     }
@@ -316,8 +316,9 @@ const OrganizationsList = () => {
       await fetchOrganizations();
       setIsConfirmOpen(false);
       setOrgToDelete(null);
+      toast.success('Organization deleted');
     } catch (err) {
-      setGlobalError(`Failed to delete: ${err?.response?.data?.message || err.message}`);
+      toast.error(err?.response?.data?.message || err.message || 'Failed to delete organization');
     } finally {
       setIsSubmitting(false);
     }
@@ -363,16 +364,6 @@ const OrganizationsList = () => {
               <Plus size={18} /> Add Organization
             </button>
           </div>
-
-          {globalError && (
-            <div style={{ padding: '14px 18px', background: T.errorBg, border: `1px solid ${T.errorBdr}`, borderRadius: 12, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }} className="fade-in-up">
-              <AlertTriangle size={18} style={{ color: T.errorText, flexShrink: 0 }} />
-              <div>
-                <p style={{ margin: 0, fontWeight: 700, color: T.errorText }}>Connection Error</p>
-                <p style={{ margin: 0, fontSize: 13, color: T.errorText, opacity: 0.85 }}>{globalError}</p>
-              </div>
-            </div>
-          )}
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: '80px 0' }}>
