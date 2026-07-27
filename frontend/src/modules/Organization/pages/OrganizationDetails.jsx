@@ -237,7 +237,7 @@ const OrganizationDetails = () => {
             const data = await OrganizationService.getOrganizationDetails(id);
             setOrganization(data);
         } catch (err) {
-            setError("Failed to load organization details.");
+            setError(err?.response?.data?.message || err.message || 'Failed to load organization details');
             console.error(err);
         } finally {
             setIsLoading(false);
