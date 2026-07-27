@@ -1,4 +1,3 @@
-
 import { api, unwrap, unwrapList, tokenStore } from "../lib/api";
 export const leadService = {
   list: (params) => unwrapList(api.get("/leads", { params })),
@@ -56,8 +55,10 @@ export const billingService = {
   subscription: () => unwrap(api.get("/billing/subscription")),
   createOrder: (data) => unwrap(api.post("/billing/razorpay/order", data)),
   verifyPayment: (data) => unwrap(api.post("/billing/razorpay/verify", data)),
+  recordFailedPayment: (data) => unwrap(api.post("/billing/razorpay/failed", data)),
   cancel: () => unwrap(api.post("/billing/cancel")),
   payments: (params) => unwrapList(api.get("/billing/payments", { params })),
+  clearPayments: () => unwrap(api.delete("/billing/payments")),
   usage: () => unwrap(api.get("/billing/usage")),
 };
 
@@ -65,6 +66,7 @@ export const apiKeyService = {
   list: () => unwrap(api.get("/api-keys")),
   create: (data) => unwrap(api.post("/api-keys", data)),
   revoke: (id) => unwrap(api.delete(`/api-keys/${id}`)),
+  regenerate: (id) => unwrap(api.post(`/api-keys/${id}/regenerate`)),
 };
 
 export const webhookService = {

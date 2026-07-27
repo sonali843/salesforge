@@ -84,10 +84,13 @@ const listDeals = asyncHandler(async (req, res) => {
   if (stage) where.stageId = Number(stage);
   if (status) where.status = status;
   if (search) {
+    const numSearch = Number(search);
     where.OR = [
       { title: { contains: search, mode: "insensitive" } },
-      { amount: { not: null } },
     ];
+    if (!isNaN(numSearch)) {
+      where.OR.push({ amount: numSearch });
+    }
   }
   const skip = (Number(page) - 1) * Number(limit);
   const [deals, total] = await Promise.all([
@@ -165,8 +168,14 @@ const createDeal = asyncHandler(async (req, res) => {
   });
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "deal.create", entityType: "Deal", entityId: deal.id, metadata: { amount, title } });
   await publish({ orgId: req.orgId, event: "DEAL_CREATED", payload: { dealId: deal.id, title, amount } });
+  // ---------------------------------------------------------------------------
+  // NOTIFICATION: Always notify the AUTHENTICATED USER who triggered this event.
+  // userId must come from req.user.id (verified JWT session) — never from
+  // req.body or deal.ownerId. The user's own preference toggles determine
+  // whether they receive in-app, email, or push notifications.
+  // ---------------------------------------------------------------------------
   await dispatchNotification({
-    userId: deal.ownerId ? deal.ownerId : req.user.id,
+    userId: req.user.id,
     orgId: req.orgId,
     type: "DEAL_CREATED",
     category: "deal",
@@ -287,7 +296,7 @@ const kanbanView = asyncHandler(async (req, res) => {
     orderBy: { position: "asc" },
   });
   const deals = await prisma.deal.findMany({
-    where: { orgId: req.orgId, status: "ACTIVE" },
+    where: { orgId: req.orgId },
     orderBy: { position: "asc" },
     include: {
       startups: { include: { org: true } },

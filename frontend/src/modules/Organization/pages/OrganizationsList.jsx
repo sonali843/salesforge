@@ -3,16 +3,13 @@ import { Search, Plus, Trash2, Edit2, X, AlertTriangle, Loader2, Mail, Globe, Bu
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { api, tokenStore } from '../../../lib/api';
-import { toast } from 'sonner';
 
-// --- BRAND COLORS (light) ---
 const C = {
   primary: '#00c6b6',
   primaryDark: '#009999',
   primaryLight: '#1ae0d0',
 };
 
-// --- THEME TOKENS ---
 const makeT = (dark) => ({
   pageBg: dark ? '#0b1120' : '#ffffff',
   pageGrad: dark ? 'radial-gradient(circle at 15% 20%, rgba(0,198,182,0.07), transparent 45%), radial-gradient(circle at 85% 80%, rgba(0,153,153,0.06), transparent 50%), #0b1120' : 'radial-gradient(circle at 15% 20%, rgba(0,198,182,0.06), transparent 45%), radial-gradient(circle at 85% 80%, rgba(0,153,153,0.05), transparent 50%), #f4fffe',
@@ -42,7 +39,6 @@ const makeT = (dark) => ({
   searchBg: dark ? '#131e32' : '#ffffff',
 });
 
-// --- ANIMATIONS & CLASSES ---
 const styles = ` 
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } } 
 @keyframes slideInLeft { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } } 
@@ -62,12 +58,10 @@ const styles = `
 .btn-danger:hover:not(:disabled) { transform: scale(1.04); }
 `;
 
-// --- BACKDROP ---
 const Backdrop = ({ onClick, dark }) => (
   <div onClick={onClick} style={{ position: 'fixed', inset: 0, zIndex: 40, background: dark ? 'rgba(0,0,0,0.60)' : 'rgba(255,255,255,0.40)', backdropFilter: 'blur(4px)', transition: 'opacity 300ms', }} />
 );
 
-// --- THEMED INPUT ---
 const ThemedInput = ({ T, error, name, ...props }) => {
   const [focused, setFocused] = useState(false);
   return (
@@ -75,7 +69,6 @@ const ThemedInput = ({ T, error, name, ...props }) => {
   );
 };
 
-// --- FORM MODAL ---
 const OrganizationFormModal = ({ isOpen, onClose, onSubmit, initialData, isLoading, T, dark }) => {
   const isEditMode = !!initialData?._id;
   const [formData, setFormData] = useState({ name: '', website: '', region: '', type: '', contactName: '' });
@@ -197,7 +190,6 @@ const OrganizationFormModal = ({ isOpen, onClose, onSubmit, initialData, isLoadi
   );
 };
 
-// --- CONFIRM DELETE MODAL ---
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, orgName, isLoading, T, dark }) => {
   if (!isOpen) return null;
   return (
@@ -224,7 +216,6 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, orgName, isLoading, T, 
   );
 };
 
-// --- MAIN COMPONENT ---
 const OrganizationsList = () => {
   const { theme } = useTheme();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -233,6 +224,7 @@ const OrganizationsList = () => {
 
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [globalError, setGlobalError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
@@ -254,23 +246,25 @@ const OrganizationsList = () => {
     headers: { Authorization: `Bearer ${tokenStore.get() || ''}` }
   });
 
-  // 🔥 COMPLETELY REMOVED ABORT CONTROLLER TO FIX FAKE ERROR BANNER
   const fetchOrganizations = useCallback(async () => {
     setLoading(true);
+    setGlobalError(null);
     try {
       const res = await api.get('/organizations', getHeaders());
       const dataArray = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
-      setOrganizations(dataArray.map(o => ({ ...o, _id: o.id || o._id })));
+      const activeOrganizations = dataArray.filter(
+        (organization) => String(organization.status || '').toUpperCase() !== 'CANCELED'
+      );
+      setOrganizations(activeOrganizations.map(o => ({ ...o, _id: o.id || o._id })));
     } catch (err) {
       console.error("API Error Details:", err);
-      // Ignores any request cancellations just in case
       if (err.name === 'AbortError' || err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
 
       if (err.response?.status === 401) {
         tokenStore.clear();
         window.location.href = '/login';
       } else {
-        toast.error(err?.response?.data?.message || err.message || 'Failed to load organizations');
+        setGlobalError(err?.response?.data?.message || err.message || 'Failed to load organizations');
       }
     } finally {
       setLoading(false);
@@ -283,8 +277,6 @@ const OrganizationsList = () => {
       window.location.href = '/login';
       return;
     }
-
-    // Direct call, no signal, no aborting
     fetchOrganizations();
   }, [fetchOrganizations, authLoading, isAuthenticated]);
 
@@ -300,9 +292,8 @@ const OrganizationsList = () => {
       await fetchOrganizations();
       setIsFormModalOpen(false);
       setEditingOrg(null);
-      toast.success(orgId ? 'Organization updated' : 'Organization created');
     } catch (err) {
-      toast.error(err?.response?.data?.message || err.message || 'Failed to save organization');
+      throw err;
     } finally {
       setIsSubmitting(false);
     }
@@ -316,9 +307,8 @@ const OrganizationsList = () => {
       await fetchOrganizations();
       setIsConfirmOpen(false);
       setOrgToDelete(null);
-      toast.success('Organization deleted');
     } catch (err) {
-      toast.error(err?.response?.data?.message || err.message || 'Failed to delete organization');
+      setGlobalError(`Failed to delete: ${err?.response?.data?.message || err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -333,6 +323,8 @@ const OrganizationsList = () => {
       o.contactName?.toLowerCase().includes(lowerQuery)
     );
   }, [organizations, searchQuery]);
+
+  const hasActiveOrg = organizations.length > 0;
 
   return (
     <div style={{ minHeight: '100vh', background: T.pageGrad, transition: 'background 300ms ease', position: 'relative', padding: '32px 16px 60px' }}>
@@ -360,10 +352,30 @@ const OrganizationsList = () => {
               <Search size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.primary }} />
               <input type="text" placeholder="Search organizations..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)} style={{ width: '100%', paddingLeft: 44, paddingRight: 14, paddingTop: 11, paddingBottom: 11, fontSize: 14, borderRadius: 12, outline: 'none', background: T.searchBg, color: T.inputColor, border: `2px solid ${searchFocused ? C.primary : T.inputBdr}`, boxShadow: searchFocused ? '0 0 0 3px rgba(0,198,182,0.18)' : 'none', transition: 'all 200ms ease', boxSizing: 'border-box', }} />
             </div>
-            <button onClick={() => { setEditingOrg(null); setIsFormModalOpen(true); }} disabled={loading} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,198,182,0.30)', opacity: loading ? 0.7 : 1, whiteSpace: 'nowrap', }} >
-              <Plus size={18} /> Add Organization
-            </button>
+
+            {!loading && hasActiveOrg ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 18px', borderRadius: 12, background: T.errorBg, border: `1px solid ${T.errorBdr}` }}>
+                <AlertTriangle size={16} style={{ color: T.errorText, flexShrink: 0 }} />
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.errorText }}>
+                  You already have your organization created. Invite members.
+                </p>
+              </div>
+            ) : (
+              <button onClick={() => { setEditingOrg(null); setIsFormModalOpen(true); }} disabled={loading} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,198,182,0.30)', opacity: loading ? 0.7 : 1, whiteSpace: 'nowrap', }} >
+                <Plus size={18} /> Add Organization
+              </button>
+            )}
           </div>
+
+          {globalError && (
+            <div style={{ padding: '14px 18px', background: T.errorBg, border: `1px solid ${T.errorBdr}`, borderRadius: 12, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }} className="fade-in-up">
+              <AlertTriangle size={18} style={{ color: T.errorText, flexShrink: 0 }} />
+              <div>
+                <p style={{ margin: 0, fontWeight: 700, color: T.errorText }}>Connection Error</p>
+                <p style={{ margin: 0, fontSize: 13, color: T.errorText, opacity: 0.85 }}>{globalError}</p>
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: '80px 0' }}>
