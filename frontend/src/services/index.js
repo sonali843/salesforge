@@ -66,6 +66,7 @@ export const apiKeyService = {
   list: () => unwrap(api.get("/api-keys")),
   create: (data) => unwrap(api.post("/api-keys", data)),
   revoke: (id) => unwrap(api.delete(`/api-keys/${id}`)),
+  regenerate: (id) => unwrap(api.post(`/api-keys/${id}/regenerate`)),
 };
 
 export const webhookService = {
