@@ -264,7 +264,7 @@ const OrganizationsList = () => {
         tokenStore.clear();
         window.location.href = '/login';
       } else {
-        setGlobalError(`Failed to load organizations. Make sure the backend is running.`);
+        setGlobalError(err?.response?.data?.message || err.message || 'Failed to load organizations');
       }
     } finally {
       setLoading(false);
