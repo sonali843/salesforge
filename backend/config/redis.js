@@ -13,10 +13,9 @@ const connectRedis = async () => {
     await redisClient.connect();
     console.log("✅ Redis Connected");
   } catch (err) {
-    console.error("❌ Redis Connection Failed:", err);
-    throw err;
-  }
-};
+  console.warn("⚠️ Redis unavailable. Continuing without Redis.");
+
+}};
 
 module.exports = {
   redisClient,
