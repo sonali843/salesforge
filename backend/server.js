@@ -1,4 +1,4 @@
-const { connectRedis } = require("./config/redis");
+const { connectRedis, redisClient } = require("./config/redis");
 
 const path = require("path");
 
@@ -14,6 +14,7 @@ const jobs = require("./jobs/followupJob");
 const startServer = async (port = Number(process.env.PORT || 3000)) => {
   await connectPostgres();
   await connectRedis();
+  console.log("Redis status:", redisClient.isOpen);
 
   const server = app.listen(port, () => {
     if (process.env.NODE_ENV !== "test") {
