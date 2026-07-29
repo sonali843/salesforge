@@ -25,10 +25,31 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 const updateCurrentUser = asyncHandler(async (req, res) => {
   const allowed = ["name", "mobile"];
   const data = {};
-  for (const key of allowed) if (req.body[key] !== undefined) data[key] = req.body[key];
+
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) {
+      data[key] = req.body[key];
+    }
+  }
+
   if (data.name) data.name = data.name.trim();
-  const user = await prisma.user.update({ where: { id: req.user.id }, data });
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data,
+  });
+
   
+  // Cache Invalidation
+  const keys = await redisClient.keys(
+  `users:${req.user.organizationId}:*`
+    );
+
+
+  if (keys.length > 0) {
+    await redisClient.del(keys);
+  }
+
   return response.success(res, getSafeUser(user));
 });
 
