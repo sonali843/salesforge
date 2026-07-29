@@ -90,6 +90,7 @@ const Billing = () => {
     setPayingPlan(plan);
     setCheckoutStep("creating_order");
     try {
+      
       const order = await billingService.createOrder({ plan, interval });
 
       if (order.contactSales) {

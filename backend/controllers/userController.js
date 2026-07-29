@@ -1,3 +1,5 @@
+const { redisClient } = require("../config/redis");
+
 const { prisma } = require("../config/postgres");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
@@ -26,18 +28,41 @@ const updateCurrentUser = asyncHandler(async (req, res) => {
   for (const key of allowed) if (req.body[key] !== undefined) data[key] = req.body[key];
   if (data.name) data.name = data.name.trim();
   const user = await prisma.user.update({ where: { id: req.user.id }, data });
+  
   return response.success(res, getSafeUser(user));
 });
 
 const listUsers = asyncHandler(async (req, res) => {
   const { page = 1, limit = 30, search } = req.query;
+
+  const cacheKey = `users:${req.orgId}:${page}:${limit}:${search || ""}`;
+
+  const cachedData = await redisClient.get(cacheKey);
+
+  if (cachedData) {
+
+    const data = JSON.parse(cachedData);
+
+    return response.paginated(
+      res,
+      data.users,
+      data.total,
+      page,
+      limit
+    );
+  }
+
+
+
   const where = { organizationId: req.orgId };
+
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { email: { contains: search, mode: "insensitive" } },
     ];
   }
+
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
@@ -45,12 +70,27 @@ const listUsers = asyncHandler(async (req, res) => {
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
       select: {
-        id: true, name: true, email: true, role: true, isVerified: true,
-        twoFactorEnabled: true, lastLoginAt: true, createdAt: true,
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        twoFactorEnabled: true,
+        lastLoginAt: true,
+        createdAt: true,
       },
     }),
     prisma.user.count({ where }),
   ]);
+
+  await redisClient.set(
+    cacheKey,
+    JSON.stringify({ users, total }),
+    {
+      EX: 300,
+    }
+  );
+
   return response.paginated(res, users, total, page, limit);
 });
 
