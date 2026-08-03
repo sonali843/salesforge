@@ -221,6 +221,7 @@ model Payment {
   description     String?
   stripePaymentId String?
   invoiceUrl      String?
+  idempotencyKey  String?       @unique   // ← ADDED THIS LINE 
   createdAt       DateTime      @default(now())
   org             Organization? @relation(fields: [orgId], references: [id])
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)

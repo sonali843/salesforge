@@ -31,6 +31,8 @@ const Billing = () => {
   const [payingPlan, setPayingPlan] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState(null); // one of CHECKOUT_STEPS[].key, or null
   const paymentSectionRef = useRef(null);
+  const paymentResolvedRef = useRef(false); // true once success or failure has been recorded for the current attempt
+  const lastFailureRef = useRef({ key: null, time: 0 }); // dedupes duplicate payment.failed events for the same decline
 
   useEffect(() => {
     if (payingPlan && paymentSectionRef.current) {
@@ -38,44 +40,44 @@ const Billing = () => {
     }
   }, [payingPlan]);
 
-  const load = async () => {
-  setLoading(true);
-
-  try {
-    const subscription = await billingService.subscription();
-
-    setSub(subscription);
-
-    try {
-  const usage = await billingService.usage();
-
-  console.log("Usage API Response:", usage);
-
-  setUsageHistory(usage);
-} catch (e) {
-  console.warn("Usage API not available", e);
-}
+  // FIX: `isInitial` is now a real parameter (defaults to false), and setLoading(false)
+  // always runs in `finally` regardless of how load() was called. Previously
+  // `isInitial` was referenced without ever being declared, which threw a
+  // ReferenceError on every call other than the very first — silently breaking
+  // every refresh triggered after a payment attempt (success, failure, or dismiss).
+  const load = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
 
     try {
-  const payments = await billingService.payments();
+      const subscription = await billingService.subscription();
+      setSub(subscription);
 
-  console.log("Payments API Response:", payments);
+      try {
+        const usage = await billingService.usage();
+        console.log("Usage API Response:", usage);
+        setUsageHistory(usage);
+      } catch (e) {
+        console.warn("Usage API not available", e);
+      }
 
-  setPaymentHistory(payments.items || payments || []);
-} catch (e) {
-  console.warn("Payments API not available", e);
-}
+      try {
+        const payments = await billingService.payments();
+        console.log("Payments API Response:", payments);
+        setPaymentHistory(payments.items || payments || []);
+      } catch (e) {
+        console.warn("Payments API not available", e);
+      }
 
-  } catch (e) {
-    setError(e.message);
-  } finally {
-    setLoading(false);
-  }
-};
-  useEffect(() => { load(); }, []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Loads the official Razorpay checkout script once. We never build our own
-  // card form — Razorpay's hosted modal handles card/UPI/netbanking securely.
+  useEffect(() => { load(true); }, []);
+
+  // Loads the official Razorpay checkout script once.
   const loadRazorpayScript = () => new Promise((resolve) => {
     if (window.Razorpay) return resolve(true);
     const script = document.createElement("script");
@@ -86,11 +88,16 @@ const Billing = () => {
   });
 
   const checkout = async (plan) => {
+    // FIX: setBusy(true) doesn't disable the button until the next render, so a
+    // fast double-click could call checkout() twice and create two Razorpay
+    // orders/modals. Guard synchronously here too.
+    if (busy) return;
+    paymentResolvedRef.current = false;
+    lastFailureRef.current = { key: null, time: 0 };
     setBusy(true);
     setPayingPlan(plan);
     setCheckoutStep("creating_order");
     try {
-      
       const order = await billingService.createOrder({ plan, interval });
 
       if (order.contactSales) {
@@ -108,34 +115,36 @@ const Billing = () => {
       }
 
       const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        toast.error("Could not load the payment gateway. Check your connection and try again.");
+      if (!scriptLoaded || !window.Razorpay) {
+        toast.error("Failed to load Razorpay payment SDK. Check your internet connection.");
         setPayingPlan(null);
         setCheckoutStep(null);
         return;
       }
 
+      const razorpayKey = order.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+
       const rzp = new window.Razorpay({
-        key: order.keyId,
+        key: razorpayKey,
         amount: order.amount,
         currency: order.currency,
         name: "SalesForge",
         description: `${plan} plan (${interval})`,
         order_id: order.orderId,
         theme: { color: "#00b5ad" },
-        // Deliberately no custom `config.display` here — Razorpay's own
-        // default checkout already properly surfaces Cards, UPI (ID entry,
-        // QR, and app intents), Netbanking, Wallets, Pay Later, and EMI when
-        // left alone. Hand-configuring the layout is fragile and previously
-        // caused a broken, duplicated UI.
         handler: async (resp) => {
+          // FIX: mark this attempt as resolved so modal.ondismiss (which can still
+          // fire after a successful payment closes the modal) doesn't also try to
+          // record a failed/cancelled row on top of the success.
+          paymentResolvedRef.current = true;
           setCheckoutStep("verifying");
           try {
             const result = await billingService.verifyPayment({
               razorpay_order_id: resp.razorpay_order_id,
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
-              plan, interval,
+              plan,
+              interval,
             });
             if (result.status === "PENDING") {
               toast.info(result.message || "Payment is still processing.");
@@ -145,30 +154,81 @@ const Billing = () => {
             await load();
           } catch (e) {
             toast.error(e.message || "Payment verification failed");
+            await load();
           } finally {
             setPayingPlan(null);
             setCheckoutStep(null);
           }
         },
         modal: {
-          ondismiss: () => { setPayingPlan(null); setCheckoutStep(null); },
+          ondismiss: async () => {
+            // FIX: if payment.failed (or handler/success) already recorded this
+            // attempt, don't overwrite it with a generic "modal closed by user" row.
+            if (paymentResolvedRef.current) return;
+            paymentResolvedRef.current = true;
+            try {
+              const res = await billingService.recordFailedPayment({
+                razorpay_order_id: order.orderId || order.id,
+                plan,
+                interval,
+                reason: "Payment modal closed by user",
+                status: "FAILED",
+              });
+              if (res?.payment) {
+                setPaymentHistory((prev) => [res.payment, ...prev.filter(p => p.id !== res.payment.id)]);
+              } else {
+                console.warn("recordFailedPayment (dismiss): unexpected response shape", res);
+              }
+            } catch (err) {
+              console.error("recordFailedPayment (dismiss) failed:", err);
+              toast.error("Couldn't record the cancelled payment — check your connection.");
+            } finally {
+              await load();
+              setPayingPlan(null);
+              setCheckoutStep(null);
+            }
+          },
         },
       });
+
       rzp.on("payment.failed", async (resp) => {
-        toast.error(resp.error?.description || "Payment failed");
-        try {
-          await billingService.recordFailedPayment({
-            razorpay_order_id: resp.error?.metadata?.order_id,
-            razorpay_payment_id: resp.error?.metadata?.payment_id,
-            plan, interval,
-            reason: resp.error?.description,
-          });
-          await load();
-        } catch {
-          // Best-effort logging — don't block the UI if this call fails too.
+        // FIX: mark resolved so a subsequent modal.ondismiss (e.g. user closes the
+        // modal right after seeing the failure) doesn't record a duplicate/generic row.
+        paymentResolvedRef.current = true;
+
+        // FIX: Razorpay can dispatch payment.failed twice for the SAME decline
+        // (there's no razorpay_payment_id on most failed attempts to dedupe by
+        // reliably), which was causing two identical FAILED rows for one try.
+        // Build a signature from the error and ignore a repeat within 2s.
+        const errorKey = `${resp.error?.code || ""}-${resp.error?.reason || ""}-${resp.error?.metadata?.payment_id || ""}`;
+        const now = Date.now();
+        if (lastFailureRef.current.key === errorKey && now - lastFailureRef.current.time < 2000) {
+          return; // duplicate event for the same decline — already recorded
         }
-        setPayingPlan(null);
-        setCheckoutStep(null);
+        lastFailureRef.current = { key: errorKey, time: now };
+
+        const failureReason = resp.error?.description || resp.error?.reason || "Payment could not be completed";
+        toast.error(failureReason);
+        try {
+          const res = await billingService.recordFailedPayment({
+            razorpay_order_id: resp.error?.metadata?.order_id || order.orderId || order.id,
+            razorpay_payment_id: resp.error?.metadata?.payment_id || null,
+            plan,
+            interval,
+            reason: failureReason,
+            status: "FAILED",
+          });
+          if (res?.payment) {
+            setPaymentHistory((prev) => [res.payment, ...prev.filter(p => p.id !== res.payment.id)]);
+          } else {
+            console.warn("recordFailedPayment: unexpected response shape", res);
+          }
+        } catch (err) {
+          console.error("recordFailedPayment failed:", err);
+          toast.error("Payment failed, but we couldn't save it to your history.");
+        } finally {
+          await load();
+        }
       });
       setCheckoutStep("awaiting_razorpay");
       rzp.open();
@@ -211,8 +271,8 @@ const Billing = () => {
           <div className="flex items-center gap-2">
             <UptoBadge tone="brand">Current: {sub.plan}</UptoBadge>
             {sub.cancelAtPeriodEnd && sub.status !== "CANCELED" && (
-  <UptoBadge tone="warning">Canceling</UptoBadge>
-)}
+              <UptoBadge tone="warning">Canceling</UptoBadge>
+            )}
           </div>
         )}
       />
@@ -239,114 +299,105 @@ const Billing = () => {
           </div>
         </section>
       )}
+
       <section>
-  <UptoSectionHeading
-    label="Usage History"
-    darkMode={darkMode}
-  />
+        <UptoSectionHeading
+          label="Usage History"
+          darkMode={darkMode}
+        />
 
-  <UptoCard>
-    {usageHistory ? (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <UptoCard>
+          {usageHistory ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <p className={s.subtext}>Leads Used</p>
+                <p className={`text-2xl font-bold ${s.heading}`}>
+                  {usageHistory.usage?.leads?.used ?? 0}
+                </p>
+              </div>
 
-        <div>
-  <p className={s.subtext}>Leads Used</p>
-  <p className={`text-2xl font-bold ${s.heading}`}>
-    {usageHistory.usage?.leads?.used ?? 0}
-  </p>
-</div>
+              <div>
+                <p className={s.subtext}>Searches</p>
+                <p className={`text-2xl font-bold ${s.heading}`}>
+                  {usageHistory.usage?.searches?.used ?? 0}
+                </p>
+              </div>
 
-<div>
-  <p className={s.subtext}>Searches</p>
-  <p className={`text-2xl font-bold ${s.heading}`}>
-    {usageHistory.usage?.searches?.used ?? 0}
-  </p>
-</div>
+              <div>
+                <p className={s.subtext}>Team Members</p>
+                <p className={`text-2xl font-bold ${s.heading}`}>
+                  {usageHistory.usage?.teamMembers?.used ?? 0}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className={s.subtext}>No usage data available.</p>
+          )}
+        </UptoCard>
+      </section>
 
-<div>
-  <p className={s.subtext}>Team Members</p>
-  <p className={`text-2xl font-bold ${s.heading}`}>
-    {usageHistory.usage?.teamMembers?.used ?? 0}
-  </p>
-</div>
+      <section>
+        <div className="flex items-center justify-between">
+          <UptoSectionHeading
+            label="Payment History"
+            darkMode={darkMode}
+          />
+          {paymentHistory.length > 0 && (
+            <UptoButton variant="danger" onClick={clearHistory}>Clear history</UptoButton>
+          )}
+        </div>
 
-      </div>
-    ) : (
-      <p className={s.subtext}>No usage data available.</p>
-    )}
-  </UptoCard>
-</section>
-<section>
-  <div className="flex items-center justify-between">
-    <UptoSectionHeading
-      label="Payment History"
-      darkMode={darkMode}
-    />
-    {paymentHistory.length > 0 && (
-      <UptoButton variant="danger" onClick={clearHistory}>Clear history</UptoButton>
-    )}
-  </div>
+        <UptoCard>
+          {paymentHistory.length === 0 ? (
+            <p className={s.subtext}>
+              No payments found.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className={s.subtext}>
+                  <th className="text-left py-2">Date</th>
+                  <th className="text-left py-2">Amount</th>
+                  <th className="text-left py-2">Status</th>
+                </tr>
+              </thead>
 
-  <UptoCard>
+              <tbody>
+                {paymentHistory.map((payment) => (
+                  <tr
+                    key={payment.id}
+                    className="border-t"
+                  >
+                    <td className="py-2">
+                      {new Date(payment.createdAt).toLocaleDateString()}
+                    </td>
 
-    {paymentHistory.length === 0 ? (
+                    <td className="py-2">
+                      ₹{payment.amount}
+                    </td>
 
-      <p className={s.subtext}>
-        No payments found.
-      </p>
-
-    ) : (
-
-      <table className="w-full text-sm">
-
-        <thead>
-          <tr className={s.subtext}>
-            <th className="text-left py-2">Date</th>
-            <th className="text-left py-2">Amount</th>
-            <th className="text-left py-2">Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {paymentHistory.map((payment) => (
-
-            <tr
-              key={payment.id}
-              className="border-t"
-            >
-              <td className="py-2">
-                {new Date(payment.createdAt).toLocaleDateString()}
-              </td>
-
-              <td className="py-2">
-                ₹{payment.amount}
-              </td>
-
-              <td className="py-2">
-                {payment.status === "FAILED" ? (
-                  <span className="inline-flex items-center rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-semibold text-red-500">
-                    FAILED
-                  </span>
-                ) : (
-                  <UptoBadge tone={payment.status === "SUCCEEDED" ? "success" : "warning"}>
-                    {payment.status}
-                  </UptoBadge>
-                )}
-              </td>
-
-            </tr>
-
-          ))}
-
-        </tbody>
-
-      </table>
-
-    )}
-
-  </UptoCard>
-</section>
+                    <td className="py-2">
+                      {payment.status === "SUCCEEDED" ? (
+                        <UptoBadge tone="success">
+                          SUCCEEDED
+                        </UptoBadge>
+                      ) : payment.status === "PENDING" ? (
+                        <UptoBadge tone="warning">
+                          PENDING
+                        </UptoBadge>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-semibold text-red-500">
+                          FAILED
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </UptoCard>
+      </section>
 
       {payingPlan && (
         <section ref={paymentSectionRef}>

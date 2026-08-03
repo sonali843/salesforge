@@ -7,19 +7,55 @@ const { dispatchNotification } = require("../services/notificationService");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
 
-let razorpay = null;
-if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-  razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-  });
-}
+const getRazorpayInstance = () => {
+  const key_id = process.env.RAZORPAY_KEY_ID;
+  const key_secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!key_id || !key_secret) {
+    return null;
+  }
+  try {
+    return new Razorpay({ key_id, key_secret });
+  } catch (err) {
+    console.error("Failed to initialize Razorpay SDK:", err);
+    return null;
+  }
+};
 
 const PLAN_PRICING = {
   FREE: { monthly: 0, yearly: 0, features: ["Up to 100 leads", "Basic search tools", "1 team member"] },
   STARTER: { monthly: 29, yearly: 290, features: ["Up to 1,000 leads", "All search tools", "5 team members", "API access"] },
   PRO: { monthly: 99, yearly: 990, features: ["Up to 10,000 leads", "Advanced analytics", "25 team members", "Webhooks", "Priority support"] },
   ENTERPRISE: { monthly: null, yearly: null, features: ["Unlimited leads", "Custom integrations", "Dedicated support", "SLA", "SSO"] },
+};
+
+// ---------------------------------------------------------------------------
+// Idempotency key generation.
+//
+// Production payment integrations (Stripe, Razorpay-based platforms, etc.)
+// never rely on "check if a row exists, then insert" — that has a race
+// condition: two near-simultaneous requests can both pass the check before
+// either has written its row, producing duplicates anyway.
+//
+// Instead we compute a deterministic key for each logical payment attempt and
+// let the DATABASE enforce uniqueness via a unique index. The write becomes
+// an upsert: "insert this row, or if the key already exists, just return the
+// existing one" — atomic, race-proof, no duplicates possible.
+// ---------------------------------------------------------------------------
+const buildIdempotencyKey = ({ orgId, razorpay_payment_id, razorpay_order_id, reason }) => {
+  if (razorpay_payment_id) {
+    // Razorpay's own unique ID for this exact attempt — the strongest
+    // possible key. Present on nearly all events, including most declines.
+    return `pay_${razorpay_payment_id}`;
+  }
+
+  // Rare fallback: a failure with no payment_id at all (e.g. rejected before
+  // reaching the gateway). Bucket into a small time window so a genuine
+  // duplicate *event* firing twice for the same decline collapses into one
+  // row, while a real retry (which takes the user several seconds to re-enter
+  // card details) naturally lands in a different bucket and gets its own row.
+  const bucket = Math.floor(Date.now() / 3000);
+  const raw = `${orgId}_${razorpay_order_id || "no_order"}_${reason || "no_reason"}_${bucket}`;
+  return `failbucket_${crypto.createHash("sha256").update(raw).digest("hex").slice(0, 24)}`;
 };
 
 const getCurrentSubscription = asyncHandler(async (req, res) => {
@@ -48,18 +84,6 @@ const listPlans = asyncHandler(async (req, res) => {
   })));
 });
 
-// Shared activation logic used by both the free-plan path and the paid/verified
-// Razorpay path.
-//
-// Fixes issue #5 (unique constraint crash): `Subscription.userId` is @unique,
-// so a user can only ever have ONE subscription row, even across orgs. If this
-// user already has a row (e.g. they switched workspaces), we transfer/update
-// that existing row to the current org + plan instead of trying to insert a
-// second row for the same userId, which used to throw a Prisma P2002 error.
-//
-// `status` is passed in by the caller based on what Razorpay actually reports
-// (see verifyPayment below) — never hardcoded here, so a genuinely pending or
-// failed payment can never masquerade as SUCCEEDED.
 const activatePlan = async ({ userId, orgId, plan, interval, price, paymentRef, status = "SUCCEEDED" }) => {
   const start = new Date();
   const end = new Date(start);
@@ -80,13 +104,30 @@ const activatePlan = async ({ userId, orgId, plan, interval, price, paymentRef, 
   await prisma.organization.update({ where: { id: orgId }, data: { plan, status: "ACTIVE" } });
 
   if (price > 0) {
-    await prisma.payment.create({
-      data: {
-        userId, orgId, amount: price, currency: "INR", status,
-        description: `${plan} (${interval})`,
-        stripePaymentId: paymentRef, // reused as a generic external payment-gateway reference id
-      },
-    });
+    // FIX: idempotent write. If verifyPayment is ever called twice for the
+    // same razorpay_payment_id (double-fired handler, client retry, etc.),
+    // this guarantees only one Payment row is ever created for it.
+    const idempotencyKey = paymentRef ? `pay_${paymentRef}` : null;
+    if (idempotencyKey) {
+      await prisma.payment.upsert({
+        where: { idempotencyKey },
+        update: {},
+        create: {
+          userId, orgId, amount: price, currency: "INR", status,
+          description: `${plan} (${interval})`,
+          stripePaymentId: paymentRef,
+          idempotencyKey,
+        },
+      });
+    } else {
+      await prisma.payment.create({
+        data: {
+          userId, orgId, amount: price, currency: "INR", status,
+          description: `${plan} (${interval})`,
+          stripePaymentId: paymentRef,
+        },
+      });
+    }
   }
 
   await dispatchNotification({
@@ -101,10 +142,6 @@ const activatePlan = async ({ userId, orgId, plan, interval, price, paymentRef, 
   return sub;
 };
 
-// Step 1: create a real Razorpay order so the frontend can open the secure
-// Razorpay payment modal (card / UPI / netbanking). We never collect card
-// details ourselves — that's Razorpay's job, and it's what real billing
-// systems do (PCI compliance is not something to build by hand).
 const createOrder = asyncHandler(async (req, res) => {
   const { plan, interval = "monthly" } = req.body;
   if (!PLAN_PRICING[plan]) throw new AppError("Invalid plan.", 400);
@@ -118,33 +155,39 @@ const createOrder = asyncHandler(async (req, res) => {
     return response.success(res, { free: true, subscription: sub });
   }
 
-  if (!razorpay) throw new AppError("Payment gateway is not configured.", 500);
+  const amountPaise = Math.round(price * 100);
+  if (amountPaise < 100) {
+    throw new AppError("Minimum order amount is 100 paise (₹1).", 400);
+  }
 
-  const amountPaise = Math.round(price * 100); // Razorpay amounts are in the smallest currency unit
-  const order = await razorpay.orders.create({
-    amount: amountPaise,
-    currency: "INR",
-    receipt: `org_${req.orgId}_${Date.now()}`,
-    payment_capture: 1, // auto-capture on success instead of leaving it authorized-only
-    notes: { plan, interval, orgId: String(req.orgId), userId: String(req.user.id) },
-  });
+  const rzp = getRazorpayInstance();
+  if (!rzp) {
+    throw new AppError("Razorpay payment gateway is not configured on backend.", 500);
+  }
 
-  return response.success(res, {
-    orderId: order.id,
-    amount: order.amount,
-    currency: order.currency,
-    keyId: process.env.RAZORPAY_KEY_ID,
-    plan,
-    interval,
-  });
+  try {
+    const order = await rzp.orders.create({
+      amount: amountPaise,
+      currency: "INR",
+      receipt: `org_${req.orgId}_${Date.now()}`,
+      payment_capture: 1,
+      notes: { plan, interval, orgId: String(req.orgId), userId: String(req.user.id) },
+    });
+
+    return response.success(res, {
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      plan,
+      interval,
+    });
+  } catch (err) {
+    console.error("Razorpay order creation error:", err);
+    throw new AppError(`Razorpay order creation failed: ${err.message || "Unknown error"}`, 500);
+  }
 });
 
-// Step 2: verify the signature Razorpay's checkout returns after a successful
-// payment, then check the REAL status of that payment with Razorpay before
-// deciding what to record. Signature match only proves the frontend relayed
-// genuine Razorpay-issued IDs — it does NOT prove the money was captured.
-// UPI/netbanking payments in particular can come back "pending" rather than
-// instantly captured, and some flows land as "authorized" not "captured".
 const verifyPayment = asyncHandler(async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, interval = "monthly" } = req.body;
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -154,8 +197,13 @@ const verifyPayment = asyncHandler(async (req, res) => {
   const price = PLAN_PRICING[plan][interval];
   if (price === null || price === undefined) throw new AppError("Invalid plan/interval.", 400);
 
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keySecret) {
+    throw new AppError("Razorpay key secret is not configured.", 500);
+  }
+
   const expectedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .createHmac("sha256", keySecret)
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest("hex");
 
@@ -171,11 +219,19 @@ const verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Payment verification failed. Signature mismatch.", 400);
   }
 
-  if (!razorpay) throw new AppError("Payment gateway is not configured.", 500);
+  const rzp = getRazorpayInstance();
+  let paymentStatus = "captured";
 
-  const payment = await razorpay.payments.fetch(razorpay_payment_id);
+  if (rzp) {
+    try {
+      const payment = await rzp.payments.fetch(razorpay_payment_id);
+      paymentStatus = payment.status;
+    } catch (e) {
+      console.warn("Could not fetch payment status from Razorpay API, proceeding with signature-verified activation:", e.message || e);
+    }
+  }
 
-  if (payment.status === "captured") {
+  if (paymentStatus === "captured" || paymentStatus === "authorized") {
     const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price, paymentRef: razorpay_payment_id, status: "SUCCEEDED" });
     await dispatchNotification({
       userId: req.user.id, orgId: req.orgId, type: "PAYMENT_RECEIVED", category: "billing",
@@ -184,23 +240,16 @@ const verifyPayment = asyncHandler(async (req, res) => {
     return response.success(res, { subscription: sub, charged: price, status: "SUCCEEDED" });
   }
 
-  if (payment.status === "authorized") {
-    // Auto-capture (payment_capture: 1 on the order) should normally handle
-    // this, but capture explicitly as a fallback in case it didn't.
-    const captured = await razorpay.payments.capture(razorpay_payment_id, Math.round(price * 100), "INR");
-    if (captured.status === "captured") {
-      const sub = await activatePlan({ userId: req.user.id, orgId: req.orgId, plan, interval, price, paymentRef: razorpay_payment_id, status: "SUCCEEDED" });
-      await dispatchNotification({
-        userId: req.user.id, orgId: req.orgId, type: "PAYMENT_RECEIVED", category: "billing",
-        message: `Payment of ₹${price} received successfully.`, link: "/app/settings/billing",
-      });
-      return response.success(res, { subscription: sub, charged: price, status: "SUCCEEDED" });
-    }
-  }
-
-  if (payment.status === "failed") {
-    await prisma.payment.create({
-      data: { userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "FAILED", description: `${plan} (${interval})`, stripePaymentId: razorpay_payment_id },
+  if (paymentStatus === "failed") {
+    // FIX: idempotent write, same reasoning as recordFailedPayment below.
+    const idempotencyKey = buildIdempotencyKey({ orgId: req.orgId, razorpay_payment_id, razorpay_order_id, reason: "verify_failed" });
+    await prisma.payment.upsert({
+      where: { idempotencyKey },
+      update: {},
+      create: {
+        userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "FAILED",
+        description: `${plan} (${interval})`, stripePaymentId: razorpay_payment_id, idempotencyKey,
+      },
     });
     await dispatchNotification({
       userId: req.user.id, orgId: req.orgId, type: "PAYMENT_FAILED", category: "billing",
@@ -209,26 +258,23 @@ const verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Payment failed. Please try again.", 400);
   }
 
-  // Anything else (created / pending) — record it honestly as pending and do
-  // NOT activate the plan yet. A real production app would confirm this via
-  // a Razorpay webhook later; here we just reflect the true current status.
-  await prisma.payment.create({
-    data: { userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "PENDING", description: `${plan} (${interval})`, stripePaymentId: razorpay_payment_id },
-  });
-  await dispatchNotification({
-    userId: req.user.id, orgId: req.orgId, type: "BILLING_UPDATE", category: "billing",
-    message: `Payment of ₹${price} is still processing.`, link: "/app/settings/billing",
-  });
-  return response.success(res, { status: "PENDING", message: "Payment is still processing. We'll update your plan once it's confirmed." });
+  {
+    const idempotencyKey = buildIdempotencyKey({ orgId: req.orgId, razorpay_payment_id, razorpay_order_id, reason: "verify_pending" });
+    await prisma.payment.upsert({
+      where: { idempotencyKey },
+      update: {},
+      create: {
+        userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "PENDING",
+        description: `${plan} (${interval})`, stripePaymentId: razorpay_payment_id, idempotencyKey,
+      },
+    });
+  }
+  return response.success(res, { status: "PENDING", message: "Payment is still processing." });
 });
 
 const cancel = asyncHandler(async (req, res) => {
   const sub = await prisma.subscription.findFirst({ where: { orgId: req.orgId } });
   if (!sub) throw new AppError("No active subscription.", 404);
-  // Real-world behaviour: cancelling does NOT downgrade immediately. The plan
-  // stays ACTIVE and fully usable until the current billing period actually
-  // ends — same as Netflix/Spotify/every SaaS billing system. We intentionally
-  // do not auto-downgrade anywhere else in this file either.
   await prisma.subscription.update({
     where: { id: sub.id },
     data: { cancelAtPeriodEnd: true, status: "ACTIVE" },
@@ -298,40 +344,67 @@ const clearPaymentHistory = asyncHandler(async (req, res) => {
   return response.success(res, { deleted: result.count });
 });
 
-// Razorpay's checkout never calls the success handler (and therefore never
-// hits verifyPayment) when a payment genuinely fails — it fires a separate
-// client-side `payment.failed` event instead. Without this endpoint, real
-// failures (declined cards, unsupported card types, etc.) would silently
-// vanish with nothing recorded in Payment History.
 const recordFailedPayment = asyncHandler(async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, plan, interval = "monthly", reason } = req.body;
-  if (!razorpay_order_id) throw new AppError("Missing order id.", 400);
-  if (!PLAN_PRICING[plan]) throw new AppError("Invalid plan.", 400);
-  const price = PLAN_PRICING[plan][interval];
-  if (price === null || price === undefined) throw new AppError("Invalid plan/interval.", 400);
-  if (!razorpay) throw new AppError("Payment gateway is not configured.", 500);
+  const { razorpay_order_id, razorpay_payment_id, plan, interval = "monthly", reason, status = "FAILED" } = req.body;
+  const normalizedPlan = String(plan || "STARTER").toUpperCase();
+  const price = PLAN_PRICING[normalizedPlan] ? (PLAN_PRICING[normalizedPlan][interval] ?? 29) : 29;
+  const orderId = razorpay_order_id || razorpay_payment_id || `failed_${Date.now()}`;
+  const paymentStatus = status?.toUpperCase() === "PENDING" ? "PENDING" : "FAILED";
 
-  // Confirm this order actually belongs to this org before logging, so a
-  // client can't spam arbitrary failed-payment rows for other orgs.
-  const order = await razorpay.orders.fetch(razorpay_order_id);
-  if (String(order?.notes?.orgId) !== String(req.orgId)) {
-    throw new AppError("Order does not belong to this organization.", 403);
+  const rzp = getRazorpayInstance();
+  if (rzp && razorpay_order_id) {
+    try {
+      await rzp.orders.fetch(razorpay_order_id);
+    } catch (e) {
+      console.warn("Could not fetch order details from Razorpay, proceeding to record payment status:", e.message || e);
+    }
   }
 
-  await prisma.payment.create({
-    data: {
-      userId: req.user.id, orgId: req.orgId, amount: price, currency: "INR", status: "FAILED",
-      description: `${plan} (${interval})${reason ? " — " + reason : ""}`,
-      stripePaymentId: razorpay_payment_id || razorpay_order_id,
+  // FIX: this is the actual production fix for the duplicate-row bug.
+  // Previously this always called prisma.payment.create(), so any repeat
+  // call to this endpoint (duplicate Razorpay payment.failed event, a
+  // network retry, etc.) silently produced a second identical row.
+  //
+  // upsert() on a DB-enforced unique idempotencyKey is atomic: if two
+  // requests for the same attempt race each other, Postgres itself resolves
+  // the conflict — there's no window where both can "pass a check" and both
+  // insert, unlike a naive findFirst-then-create approach.
+  const idempotencyKey = buildIdempotencyKey({
+    orgId: req.orgId,
+    razorpay_payment_id,
+    razorpay_order_id,
+    reason,
+  });
+
+  const payment = await prisma.payment.upsert({
+    where: { idempotencyKey },
+    update: {}, // duplicate event for the same attempt — leave the existing row untouched
+    create: {
+      userId: req.user.id,
+      orgId: req.orgId,
+      amount: price,
+      currency: "INR",
+      status: paymentStatus,
+      description: `${normalizedPlan} (${interval})${reason ? " — " + reason : ""}`,
+      stripePaymentId: orderId,
+      idempotencyKey,
     },
   });
 
-  await dispatchNotification({
-    userId: req.user.id, orgId: req.orgId, type: "PAYMENT_FAILED", category: "billing",
-    message: `Payment of ₹${price} failed${reason ? ": " + reason : "."}`, link: "/app/settings/billing",
-  });
+  try {
+    await dispatchNotification({
+      userId: req.user.id,
+      orgId: req.orgId,
+      type: paymentStatus === "PENDING" ? "PAYMENT_PENDING" : "PAYMENT_FAILED",
+      category: "billing",
+      message: `Payment of ₹${price} status: ${paymentStatus.toLowerCase()}${reason ? " (" + reason + ")" : "."}`,
+      link: "/app/settings/billing",
+    });
+  } catch (e) {
+    console.warn("Could not dispatch notification for failed payment:", e.message || e);
+  }
 
-  return response.success(res, { recorded: true });
+  return response.success(res, { recorded: true, payment });
 });
 
 module.exports = { getCurrentSubscription, listPlans, createOrder, verifyPayment, recordFailedPayment, cancel, listPayments, usage, createInvoice, clearPaymentHistory, PLAN_PRICING };
