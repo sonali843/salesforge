@@ -78,6 +78,7 @@ const webhookIncomingRoutes = require("./routes/webhookIncomingRoutes");
 const workflowRoutes = require("./routes/workflowRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const pushRoutes = require("./routes/pushRoutes");
+const razorpayRoutes = require("./routes/razorpayRoutes");
 
 // Optional feature routes
 let aiRoutes;
@@ -115,7 +116,14 @@ app.use(requestId);
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      if (
+        !origin ||
+        allowedOrigins.has(origin) ||
+        origin.endsWith(".vercel.app") ||
+        process.env.NODE_ENV === "production"
+      ) {
+        return callback(null, true);
+      }
       callback(new Error(`Origin ${origin} is not allowed by CORS.`));
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -182,6 +190,7 @@ app.use("/api/domain-search", domainSearchRoutes);
 app.use("/api/social-search", socialSearchRoutes);
 app.use("/api/team", teamRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api", razorpayRoutes);
 app.use("/api/api-keys", apiKeyRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/webhooks-incoming", webhookIncomingRoutes);

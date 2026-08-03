@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FaBookOpen, FaPlayCircle, FaUpload, FaSun, FaMoon } from "react-icons/fa";
 import { useTheme } from "../../../context/ThemeContext";
+import { api, unwrapList } from "../../../lib/api";
 
 // ── Theme-aware color palettes ────────────────────────────────────────────────
 const makeTokens = (darkMode) => ({
@@ -98,11 +99,19 @@ const EmailSearch = () => {
   const [isBulkCardHover,  setIsBulkCardHover]  = useState(false);
   const [pageLoaded,       setPageLoaded]        = useState(false);
 
-  const [firstName,    setFirstName]    = useState("");
-  const [lastName,     setLastName]     = useState("");
-  const [domain,       setDomain]       = useState("");
+  const [name,         setName]         = useState("");
+  const [company,      setCompany]      = useState("");
+  const [jobTitle,     setJobTitle]     = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+  const [bulkRows,     setBulkRows]     = useState([]);
+  const [bulkResults,  setBulkResults]  = useState([]);
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [bulkError,    setBulkError]    = useState("");
   const [isLoading,    setIsLoading]    = useState(false);
+  const [foundResult,  setFoundResult]  = useState(null);
+  const [searchError,  setSearchError]  = useState("");
+  const [leadSuggestions, setLeadSuggestions] = useState({ name: [], company: [], jobTitle: [] });
+  const [openSuggestionField, setOpenSuggestionField] = useState("");
 
   const [isFindHover,   setIsFindHover]   = useState(false);
   const [isChooseHover, setIsChooseHover] = useState(false);
@@ -116,19 +125,174 @@ const EmailSearch = () => {
     return () => clearTimeout(t);
   }, []);
 
-  const handleEmailSearch = (e) => {
+  // Debounced lookups against the existing Leads search endpoint (read-only,
+  // no changes to the Leads page or its code needed) — one per field.
+  useEffect(() => {
+    if (!name || name.trim().length < 2) {
+      setLeadSuggestions((s) => ({ ...s, name: [] }));
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const { items } = await unwrapList(api.get("/leads", { params: { search: name, limit: 5, page: 1 } }));
+        setLeadSuggestions((s) => ({ ...s, name: items || [] }));
+      } catch {
+        setLeadSuggestions((s) => ({ ...s, name: [] }));
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [name]);
+
+  useEffect(() => {
+    if (!company || company.trim().length < 2) {
+      setLeadSuggestions((s) => ({ ...s, company: [] }));
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const { items } = await unwrapList(api.get("/leads", { params: { search: company, limit: 5, page: 1 } }));
+        setLeadSuggestions((s) => ({ ...s, company: items || [] }));
+      } catch {
+        setLeadSuggestions((s) => ({ ...s, company: [] }));
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [company]);
+
+  useEffect(() => {
+    if (!jobTitle || jobTitle.trim().length < 2) {
+      setLeadSuggestions((s) => ({ ...s, jobTitle: [] }));
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const { items } = await unwrapList(api.get("/leads", { params: { search: jobTitle, limit: 5, page: 1 } }));
+        setLeadSuggestions((s) => ({ ...s, jobTitle: items || [] }));
+      } catch {
+        setLeadSuggestions((s) => ({ ...s, jobTitle: [] }));
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [jobTitle]);
+
+  const selectLeadSuggestion = (lead) => {
+    setName(lead.name || "");
+    setCompany(lead.companyName || "");
+    setJobTitle(lead.jobTitle || "");
+    setOpenSuggestionField("");
+  };
+
+  // Looks up a real, already-saved lead matching this name + company.
+  // Returns the lead record (with its real email) or null if no match exists.
+  const findRealLeadEmail = async (searchName, searchCompany) => {
+    const { items } = await unwrapList(api.get("/leads", { params: { search: searchName, limit: 20, page: 1 } }));
+    const norm = (s) => String(s || "").trim().toLowerCase();
+    const nameNorm = norm(searchName);
+    const companyNorm = norm(searchCompany);
+    return (
+      (items || []).find((lead) => {
+        const leadName = norm(lead.name);
+        const leadCompany = norm(lead.companyName);
+        const nameMatches = leadName === nameNorm || leadName.includes(nameNorm) || nameNorm.includes(leadName);
+        const companyMatches = !companyNorm || leadCompany.includes(companyNorm) || companyNorm.includes(leadCompany);
+        return nameMatches && companyMatches;
+      }) || null
+    );
+  };
+
+  const handleEmailSearch = async (e) => {
     e.preventDefault();
-    if (!firstName || !lastName || !domain) { alert("Please fill in all fields"); return; }
-    if (!selectedFile) { alert("Please select a file when entering first name, last name, and domain"); return; }
+    if (!name || !company) { alert("Please fill in name and company"); return; }
     setIsLoading(true);
-    setTimeout(() => { setIsLoading(false); }, 1200);
+    setSearchError("");
+    setFoundResult(null);
+    try {
+      const lead = await findRealLeadEmail(name, company);
+      setFoundResult({
+        name, company, jobTitle,
+        found: !!lead,
+        email: lead?.email || null,
+        leadStatus: lead?.status || null,
+      });
+    } catch (err) {
+      setSearchError(err?.normalized?.message || err?.message || "Email search failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Minimal CSV parser: handles comma-separated values and basic double-quoted
+  // fields (e.g. "Acme, Inc."). No external library needed for this scope.
+  const parseCsv = (text) => {
+    const lines = text.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
+    if (lines.length === 0) return [];
+    const splitLine = (line) => {
+      const out = [];
+      let cur = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') { inQuotes = !inQuotes; continue; }
+        if (ch === "," && !inQuotes) { out.push(cur.trim()); cur = ""; continue; }
+        cur += ch;
+      }
+      out.push(cur.trim());
+      return out;
+    };
+    const headers = splitLine(lines[0]).map((h) => h.toLowerCase().replace(/[\s_]+/g, ""));
+    return lines.slice(1).map((line) => {
+      const values = splitLine(line);
+      const row = {};
+      headers.forEach((h, idx) => { row[h] = values[idx] || ""; });
+      return {
+        name: row.name || row.fullname || "",
+        company: row.company || row.companyname || "",
+        jobTitle: row.jobtitle || row.job || row.title || "",
+      };
+    }).filter((r) => r.name);
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setSelectedFile(file);
+    setBulkResults([]);
+    setBulkError("");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const rows = parseCsv(String(ev.target.result || ""));
+        if (rows.length === 0) {
+          setBulkError("No valid rows found. Make sure the CSV has at least a 'name' column.");
+        }
+        setBulkRows(rows);
+      } catch {
+        setBulkError("Could not read that file. Please upload a plain CSV.");
+      }
+    };
+    reader.onerror = () => setBulkError("Could not read that file.");
+    reader.readAsText(file);
   };
 
-  const inputStyle = (name) => ({
+  const handleBulkSearch = async () => {
+    if (bulkRows.length === 0) return;
+    setIsBulkLoading(true);
+    setBulkError("");
+    setBulkResults([]);
+    const results = [];
+    for (const row of bulkRows) {
+      try {
+        const lead = await findRealLeadEmail(row.name, row.company);
+        results.push({ ...row, found: !!lead, email: lead?.email || null, status: "ok" });
+      } catch (err) {
+        results.push({ ...row, status: "error", errorMessage: err?.normalized?.message || err?.message || "Failed" });
+      }
+    }
+    setBulkResults(results);
+    setIsBulkLoading(false);
+  };
+
+  const inputStyle = (fieldKey) => ({
     flex: 1,
     padding: "11px 12px",
     fontSize: 15,
@@ -136,8 +300,8 @@ const EmailSearch = () => {
     outline: "none",
     background: T.inputBg,
     color: T.inputColor,
-    border: T.inputBorder(focusField === name),
-    boxShadow: T.inputShadow(focusField === name),
+    border: T.inputBorder(focusField === fieldKey),
+    boxShadow: T.inputShadow(focusField === fieldKey),
     transition: "all 200ms ease",
   });
 
@@ -296,21 +460,45 @@ const EmailSearch = () => {
           </div>
 
           <p style={{ fontSize: 15, marginBottom: 16, color: T.subtext }}>
-            Find email from your leads name and company
+            Find email from your lead's name, company, and job title
           </p>
 
           <form onSubmit={handleEmailSearch}>
             <div style={{ display: "flex", gap: 27, marginBottom: 22 }}>
-              {["first", "last", "domain"].map((field, i) => (
-                <input
-                  key={field}
-                  style={inputStyle(field)}
-                  placeholder={["First Name", "Last Name", "Company Domain Name"][i]}
-                  value={[firstName, lastName, domain][i]}
-                  onFocus={() => setFocusField(field)}
-                  onBlur={() => setFocusField("")}
-                  onChange={(e) => [setFirstName, setLastName, setDomain][i](e.target.value)}
-                />
+              {["name", "company", "jobTitle"].map((field, i) => (
+                <div key={field} style={{ flex: 1, position: "relative" }}>
+                  <input
+                    style={{ ...inputStyle(field), width: "100%", boxSizing: "border-box" }}
+                    placeholder={["Full Name", "Company", "Job Title"][i]}
+                    value={[name, company, jobTitle][i]}
+                    onFocus={() => { setFocusField(field); if (leadSuggestions[field].length) setOpenSuggestionField(field); }}
+                    onBlur={() => { setFocusField(""); setTimeout(() => setOpenSuggestionField(""), 150); }}
+                    onChange={(e) => {
+                      [setName, setCompany, setJobTitle][i](e.target.value);
+                      setOpenSuggestionField(field);
+                    }}
+                  />
+                  {openSuggestionField === field && leadSuggestions[field].length > 0 && (
+                    <div style={{
+                      position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 20,
+                      background: T.cardBg, border: T.cardBorderDefault, borderRadius: 10,
+                      boxShadow: "0 12px 28px rgba(0,0,0,0.18)", overflow: "hidden",
+                    }}>
+                      {leadSuggestions[field].map((lead) => (
+                        <div
+                          key={lead.id}
+                          onMouseDown={() => selectLeadSuggestion(lead)}
+                          style={{ padding: "10px 14px", cursor: "pointer", borderBottom: T.cardBorderDefault }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: 14, color: T.heading }}>{lead.name}</div>
+                          <div style={{ fontSize: 12.5, color: T.subtext }}>
+                            {lead.companyName || "—"}{lead.jobTitle ? ` · ${lead.jobTitle}` : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
 
@@ -332,6 +520,37 @@ const EmailSearch = () => {
               </button>
             </div>
           </form>
+
+          {searchError && (
+            <div style={{ marginTop: 18, padding: "12px 16px", borderRadius: 10, background: "rgba(220,38,38,0.12)", border: "1.5px solid rgba(220,38,38,0.35)", color: darkMode ? "#fca5a5" : "#b91c1c", fontSize: 14, fontWeight: 600 }}>
+              {searchError}
+            </div>
+          )}
+
+          {foundResult && (
+            <div style={{ marginTop: 18, padding: "18px 20px", borderRadius: 12, background: T.cardBg, border: T.cardBorderDefault }}>
+              {foundResult.found ? (
+                <>
+                  <div style={{ fontSize: 13, color: T.subtext, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                    Email on file
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: T.heading, marginBottom: 10, wordBreak: "break-all" }}>
+                    {foundResult.email}
+                  </div>
+                  <div style={{ display: "inline-block", padding: "4px 12px", borderRadius: 20, fontSize: 13, fontWeight: 700,
+                    background: "rgba(23,170,151,0.16)", color: "#17AA97" }}>
+                    Found in your Leads
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 15, color: T.subtext }}>
+                  No matching lead found for <strong style={{ color: T.heading }}>{foundResult.name}</strong> at{" "}
+                  <strong style={{ color: T.heading }}>{foundResult.company}</strong>. Add them as a lead first, or check
+                  the spelling of the name/company.
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Bulk Email Search card ─────────────────────────────────────── */}
@@ -415,6 +634,61 @@ const EmailSearch = () => {
             {selectedFile && (
               <div style={{ backgroundColor: T.fileChipBg, border: T.fileChipBorder, borderRadius: "10px", padding: "10px 18px", marginTop: 16, fontSize: 15, color: T.fileChipColor, fontWeight: 700, display: "inline-block" }}>
                 Selected file: <span style={{ fontWeight: 900 }}>{selectedFile.name}</span>
+                {bulkRows.length > 0 && <span style={{ fontWeight: 500 }}> — {bulkRows.length} row{bulkRows.length !== 1 ? "s" : ""} found</span>}
+              </div>
+            )}
+
+            {bulkError && (
+              <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 10, background: "rgba(220,38,38,0.12)", border: "1.5px solid rgba(220,38,38,0.35)", color: darkMode ? "#fca5a5" : "#b91c1c", fontSize: 14, fontWeight: 600, maxWidth: 530, marginLeft: "auto", marginRight: "auto" }}>
+                {bulkError}
+              </div>
+            )}
+
+            {bulkRows.length > 0 && (
+              <button
+                type="button"
+                onClick={handleBulkSearch}
+                disabled={isBulkLoading}
+                style={{
+                  marginTop: 20, padding: "13px 34px", borderRadius: 12, fontSize: 16, fontWeight: 800,
+                  background: "linear-gradient(90deg, #17AA97, #10897a)", color: "#fff", border: "none",
+                  cursor: isBulkLoading ? "default" : "pointer", opacity: isBulkLoading ? 0.7 : 1,
+                }}
+              >
+                {isBulkLoading ? `Searching ${bulkRows.length} leads...` : `Search all ${bulkRows.length} leads`}
+              </button>
+            )}
+
+            {bulkResults.length > 0 && (
+              <div style={{ marginTop: 24, textAlign: "left", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ borderBottom: T.cardBorderDefault }}>
+                      <th style={{ padding: "10px 12px", color: T.subtext, fontWeight: 700 }}>Name</th>
+                      <th style={{ padding: "10px 12px", color: T.subtext, fontWeight: 700 }}>Company</th>
+                      <th style={{ padding: "10px 12px", color: T.subtext, fontWeight: 700 }}>Email</th>
+                      <th style={{ padding: "10px 12px", color: T.subtext, fontWeight: 700 }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkResults.map((r, idx) => (
+                      <tr key={idx} style={{ borderBottom: T.cardBorderDefault }}>
+                        <td style={{ padding: "10px 12px", color: T.heading, fontWeight: 600 }}>{r.name}</td>
+                        <td style={{ padding: "10px 12px", color: T.heading }}>{r.company}</td>
+                        <td style={{ padding: "10px 12px", color: T.heading, wordBreak: "break-all" }}>{r.status === "ok" && r.found ? r.email : "—"}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <span style={{
+                            fontSize: 12.5, fontWeight: 700, padding: "3px 10px", borderRadius: 16,
+                            background: r.status === "ok" && r.found ? "rgba(23,170,151,0.16)" : r.status === "error" ? "rgba(220,38,38,0.14)" : "rgba(148,163,184,0.16)",
+                            color: r.status === "ok" && r.found ? "#17AA97" : r.status === "error" ? "#b91c1c" : "#64748b",
+                          }}>
+                            {r.status === "error" ? r.errorMessage : r.found ? "Found in Leads" : "No matching lead"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

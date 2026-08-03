@@ -53,13 +53,7 @@ export const teamService = {
 export const billingService = {
   plans: () => unwrap(api.get("/billing/plans")),
   subscription: () => unwrap(api.get("/billing/subscription")),
-  createOrder: (data) => {
-  console.log("createOrder URL =", "/billing/razorpay/order");
-
-  debugger;
-
-  return unwrap(api.post("/billing/razorpay/order", data));
-},
+ createOrder: (data) => unwrap(api.post("/billing/razorpay/order", data)),
   verifyPayment: (data) => unwrap(api.post("/billing/razorpay/verify", data)),
   recordFailedPayment: (data) => unwrap(api.post("/billing/razorpay/failed", data)),
   cancel: () => unwrap(api.post("/billing/cancel")),
