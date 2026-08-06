@@ -1,5 +1,4 @@
 import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,9 +12,11 @@ export const firebaseConfig = {
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 
+// Use only dynamic import for messaging to avoid static+dynamic conflict warning.
+// This keeps the firebase/messaging module in a separate async chunk.
 export const getFirebaseMessaging = async () => {
   try {
-    const { isSupported } = await import("firebase/messaging");
+    const { isSupported, getMessaging } = await import("firebase/messaging");
     const supported = await isSupported();
     if (supported) {
       return getMessaging(app);
