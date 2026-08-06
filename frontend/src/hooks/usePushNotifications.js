@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { getToken, onMessage } from 'firebase/messaging';
 import { getFirebaseMessaging, firebaseConfig } from '../lib/firebase';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
@@ -15,6 +14,8 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
       const messaging = await getFirebaseMessaging();
       if (!messaging) return;
 
+      // Dynamic import to avoid static + dynamic conflict
+      const { onMessage } = await import('firebase/messaging');
       unsubscribe = onMessage(messaging, (payload) => {
         console.log("Foreground message received:", payload);
         toast(payload.notification?.title || "New Notification", {
@@ -24,14 +25,6 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
     };
 
     setupForegroundMessaging();
-
-    // Check permission immediately instead of waiting for scroll
-    if ("Notification" in window) {
-      if (Notification.permission === 'granted' || Notification.permission === 'default') {
-        // We will call requestPermissionAndSubscribe slightly later because it relies on the function below
-        // Actually, we can't call it here directly because requestPermissionAndSubscribe is defined below.
-      }
-    }
 
     return () => {
       if (unsubscribe) {
@@ -46,12 +39,15 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
       if (permission === 'granted') {
         const messaging = await getFirebaseMessaging();
         if (!messaging) return;
-        
+
+        // Dynamic import to avoid static + dynamic conflict
+        const { getToken } = await import('firebase/messaging');
+
         // Pass the config as URL params to the SW so we don't hardcode it in public/
         const swUrl = `/firebase-messaging-sw.js?apiKey=${firebaseConfig.apiKey}&projectId=${firebaseConfig.projectId}&messagingSenderId=${firebaseConfig.messagingSenderId}&appId=${firebaseConfig.appId}&authDomain=${firebaseConfig.authDomain}&storageBucket=${firebaseConfig.storageBucket}`;
-        
+
         const registration = await navigator.serviceWorker.register(swUrl);
-        
+
         const currentToken = await getToken(messaging, {
           vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
           serviceWorkerRegistration: registration,
@@ -84,14 +80,12 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
       const clientHeight = document.documentElement.clientHeight;
 
       const scrolledPercentage = scrollTop / (scrollHeight - clientHeight);
-      
+
       if (scrolledPercentage >= scrollThreshold) {
         scrolledRef.current = true;
-        // Check if we haven't asked or if it's default
         if (Notification.permission === 'default') {
           requestPermissionAndSubscribe();
         } else if (Notification.permission === 'granted') {
-          // If already granted, just make sure we have the token sent
           requestPermissionAndSubscribe();
         }
       }
