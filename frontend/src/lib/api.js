@@ -4,10 +4,22 @@
 
 import axios from "axios";
 
-const baseURL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000") + "/api";
+const getBaseURL = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    const custom = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "");
+    return custom.endsWith("/api") ? custom : `${custom}/api`;
+  }
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return "/api";
+    }
+  }
+  return "http://localhost:3000/api";
+};
 
 export const api = axios.create({
-  baseURL,
+  baseURL: getBaseURL(),
   withCredentials: false,
   timeout: 30_000,
   headers: { "Content-Type": "application/json" },
@@ -135,7 +147,9 @@ export const unwrapList = (promise) =>
 
 // SSE helper for real-time streams.
 export const openEventStream = (path, { onEvent, onError, params = {} } = {}) => {
-  const url = new URL(baseURL + path);
+  const fullBase = getBaseURL();
+  const originUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
+  const url = new URL(fullBase.startsWith("http") ? fullBase + path : originUrl + fullBase + path);
   const token = tokenStore.get();
   if (token) url.searchParams.set("token", token);
   for (const [k, v] of Object.entries(params)) {

@@ -1,74 +1,109 @@
-import React, { useLayoutEffect } from "react";
+import React, { useLayoutEffect, lazy, Suspense } from "react";
 import {
   BrowserRouter, Routes, Route, Navigate, useLocation,
 } from "react-router-dom";
 import ErrorBoundary from "../ErrorBoundary";
 import { useAuth } from "@/context/AuthContext";
-import { ChatProvider } from "@/context/ChatContext";
-import ChatBot from "../components/ChatBot";
-import CommandPalette from "@/components/CommandPalette";
 
-import Login from "../pages/Auth/Login";
-import AdminLogin from "../pages/Auth/AdminLogin";
-import AcceptInvite from "../pages/Auth/AcceptInvite";
-import Landing from "../pages/Landing/LandingPage";
-import DashboardLayout from "../components/layout/DashboardLayout";
+// ── Lazy-loaded pages & components ───────────────────────────────────────────
+// Each lazy() call becomes a separate async chunk — the browser only downloads
+// what the current route needs, slashing initial bundle size.
 
-import Dashboard from "../pages/Dashboard/Dashboard";
-import Leads from "../pages/Dashboard/Leads";
-import LeadDetail from "../pages/Dashboard/LeadDetail";
-import Deals from "../pages/Dashboard/Deals";
-import Activities from "../pages/Dashboard/Activities";
-import Calendar from "../pages/Dashboard/Calendar";
-import Billing from "../pages/Dashboard/Billing";
-import Team from "../pages/Dashboard/Team";
-import Templates from "../pages/Dashboard/Templates";
-import Sequences from "../pages/Dashboard/Sequences";
-import Workflows from "../pages/Dashboard/Workflows";
-import Reports from "../pages/Dashboard/Reports";
-import Integrations from "../pages/Dashboard/Integrations";
-import { ApiKeys, Webhooks } from "../pages/Dashboard/ApiKeys";
-import { Usage, Audit, Sessions, TwoFactor } from "../pages/Dashboard/Settings";
-import { Changelog, Onboarding, NotificationPreferences, DataExport } from "../pages/Dashboard/Extras";
-import AdminDashboard from "../pages/Dashboard/AdminDashboard";
-import AdminMainLayout from "../components/admin/AdminMainLayout";
-import AdminUsers from "../components/admin/AdminUsers";
-import AdminServerHealth from "../components/admin/AdminServerHealth";
-import AdminAuditLogs from "../components/admin/AdminAuditLogs";
-import AdminSettings from "../components/admin/AdminSettings";
-import Quotes from "../pages/Dashboard/Quotes";
-import QuoteDetail from "../pages/Dashboard/QuoteDetail";
-import Products from "../pages/Dashboard/Products";
-import Playbooks from "../pages/Dashboard/Playbooks";
-import Analytics from "../pages/Dashboard/Analytics";
-import Contacts from "../pages/Dashboard/Contacts";
-import Quotas from "../pages/Dashboard/Quotas";
-import Commissions from "../pages/Dashboard/Commissions";
-import Territories from "../pages/Dashboard/Territories";
-import Calls from "../pages/Dashboard/Calls";
-import Documents from "../pages/Dashboard/Documents";
-import Contracts from "../pages/Dashboard/Contracts";
-import Tickets from "../pages/Dashboard/Tickets";
-import Surveys from "../pages/Dashboard/Surveys";
-import Campaigns from "../pages/Dashboard/Campaigns";
-import KB from "../pages/Dashboard/KB";
-import HealthScores from "../pages/Dashboard/HealthScores";
-import AIInsights from "../pages/Dashboard/AIInsights";
+// Auth
+const Login           = lazy(() => import("../pages/Auth/Login"));
+const AdminLogin      = lazy(() => import("../pages/Auth/AdminLogin"));
+const AcceptInvite    = lazy(() => import("../pages/Auth/AcceptInvite"));
 
-import EmailSearch from "../components/Tools/Email/EmailSearch";
-import DomainSearch from "../components/Tools/Domain/DomainSearch";
-import DatabaseSearch from "../components/Tools/Database/DatabaseSearch";
-import URLSearch from "../components/Tools/SocialUrl/SocialUrlSearch";
-import IntelHub from "../components/Tools/IntelHub/IntelHub";
-import Settings1 from "../components/Tools/Settings1/Settings1";
-import Notifications from "../components/Tools/Notifications/Notification";
+// Landing
+const Landing         = lazy(() => import("../pages/Landing/LandingPage"));
 
-import InsightDashboard from "../modules/InsightDashboard/Insight";
-import {
-  OrganizationsList, AddOrganization, EditOrganization, OrganizationDetails,
-} from "../modules/Organization";
+// Layout
+const DashboardLayout = lazy(() => import("../components/layout/DashboardLayout"));
 
-import CustomFields from "../pages/Dashboard/CustomFields";
+// Dashboard & CRM pages
+const Dashboard    = lazy(() => import("../pages/Dashboard/Dashboard"));
+const Leads        = lazy(() => import("../pages/Dashboard/Leads"));
+const LeadDetail   = lazy(() => import("../pages/Dashboard/LeadDetail"));
+const Deals        = lazy(() => import("../pages/Dashboard/Deals"));
+const Activities   = lazy(() => import("../pages/Dashboard/Activities"));
+const Calendar     = lazy(() => import("../pages/Dashboard/Calendar"));
+const Billing      = lazy(() => import("../pages/Dashboard/Billing"));
+const Team         = lazy(() => import("../pages/Dashboard/Team"));
+const Templates    = lazy(() => import("../pages/Dashboard/Templates"));
+const Sequences    = lazy(() => import("../pages/Dashboard/Sequences"));
+const Workflows    = lazy(() => import("../pages/Dashboard/Workflows"));
+const Reports      = lazy(() => import("../pages/Dashboard/Reports"));
+const Integrations = lazy(() => import("../pages/Dashboard/Integrations"));
+const Quotes       = lazy(() => import("../pages/Dashboard/Quotes"));
+const QuoteDetail  = lazy(() => import("../pages/Dashboard/QuoteDetail"));
+const Products     = lazy(() => import("../pages/Dashboard/Products"));
+const Playbooks    = lazy(() => import("../pages/Dashboard/Playbooks"));
+const Analytics    = lazy(() => import("../pages/Dashboard/Analytics"));
+const Contacts     = lazy(() => import("../pages/Dashboard/Contacts"));
+const Quotas       = lazy(() => import("../pages/Dashboard/Quotas"));
+const Commissions  = lazy(() => import("../pages/Dashboard/Commissions"));
+const Territories  = lazy(() => import("../pages/Dashboard/Territories"));
+const Calls        = lazy(() => import("../pages/Dashboard/Calls"));
+const Documents    = lazy(() => import("../pages/Dashboard/Documents"));
+const Contracts    = lazy(() => import("../pages/Dashboard/Contracts"));
+const Tickets      = lazy(() => import("../pages/Dashboard/Tickets"));
+const Surveys      = lazy(() => import("../pages/Dashboard/Surveys"));
+const Campaigns    = lazy(() => import("../pages/Dashboard/Campaigns"));
+const KB           = lazy(() => import("../pages/Dashboard/KB"));
+const HealthScores = lazy(() => import("../pages/Dashboard/HealthScores"));
+const AIInsights   = lazy(() => import("../pages/Dashboard/AIInsights"));
+const CustomFields = lazy(() => import("../pages/Dashboard/CustomFields"));
+
+// Settings exports (named) — wrap each in its own lazy thunk
+const ApiKeys     = lazy(() => import("../pages/Dashboard/ApiKeys").then(m => ({ default: m.ApiKeys })));
+const Webhooks    = lazy(() => import("../pages/Dashboard/ApiKeys").then(m => ({ default: m.Webhooks })));
+const Usage       = lazy(() => import("../pages/Dashboard/Settings").then(m => ({ default: m.Usage })));
+const Audit       = lazy(() => import("../pages/Dashboard/Settings").then(m => ({ default: m.Audit })));
+const Sessions    = lazy(() => import("../pages/Dashboard/Settings").then(m => ({ default: m.Sessions })));
+const TwoFactor   = lazy(() => import("../pages/Dashboard/Settings").then(m => ({ default: m.TwoFactor })));
+
+// Extras exports (named)
+const Changelog               = lazy(() => import("../pages/Dashboard/Extras").then(m => ({ default: m.Changelog })));
+const Onboarding              = lazy(() => import("../pages/Dashboard/Extras").then(m => ({ default: m.Onboarding })));
+const NotificationPreferences = lazy(() => import("../pages/Dashboard/Extras").then(m => ({ default: m.NotificationPreferences })));
+const DataExport              = lazy(() => import("../pages/Dashboard/Extras").then(m => ({ default: m.DataExport })));
+
+// Admin
+const AdminDashboard    = lazy(() => import("../pages/Dashboard/AdminDashboard"));
+const AdminMainLayout   = lazy(() => import("../components/admin/AdminMainLayout"));
+const AdminUsers        = lazy(() => import("../components/admin/AdminUsers"));
+const AdminServerHealth = lazy(() => import("../components/admin/AdminServerHealth"));
+const AdminAuditLogs    = lazy(() => import("../components/admin/AdminAuditLogs"));
+const AdminSettings     = lazy(() => import("../components/admin/AdminSettings"));
+
+// Tools
+const IntelHub  = lazy(() => import("../components/Tools/IntelHub/IntelHub"));
+const Settings1 = lazy(() => import("../components/Tools/Settings1/Settings1"));
+const Notifications = lazy(() => import("../components/Tools/Notifications/Notification"));
+
+// IntelHub sub-tools (kept lazy for completeness; IntelHub itself handles routing)
+const EmailSearch    = lazy(() => import("../components/Tools/Email/EmailSearch"));
+const DomainSearch   = lazy(() => import("../components/Tools/Domain/DomainSearch"));
+const DatabaseSearch = lazy(() => import("../components/Tools/Database/DatabaseSearch"));
+const URLSearch      = lazy(() => import("../components/Tools/SocialUrl/SocialUrlSearch"));
+
+// Modules
+const InsightDashboard    = lazy(() => import("../modules/InsightDashboard/Insight"));
+const OrganizationsList   = lazy(() => import("../modules/Organization").then(m => ({ default: m.OrganizationsList })));
+const AddOrganization     = lazy(() => import("../modules/Organization").then(m => ({ default: m.AddOrganization })));
+const EditOrganization    = lazy(() => import("../modules/Organization").then(m => ({ default: m.EditOrganization })));
+const OrganizationDetails = lazy(() => import("../modules/Organization").then(m => ({ default: m.OrganizationDetails })));
+
+// Shared ChatBot & CommandPalette (small, loaded with shell)
+const ChatBot        = lazy(() => import("../components/ChatBot"));
+const CommandPalette = lazy(() => import("../components/CommandPalette"));
+
+// ── Spinner shown while a lazy chunk is loading ───────────────────────────────
+const PageSpinner = () => (
+  <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
+    <div className="h-10 w-10 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" />
+  </div>
+);
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -77,9 +112,9 @@ const ScrollToTop = () => {
 };
 
 const App = () => (
-    <ChatProvider>
-      <BrowserRouter>
-        <ScrollToTop />
+  <BrowserRouter>
+    <ScrollToTop />
+    <Suspense fallback={<PageSpinner />}>
       <Routes>
         <Route path="/" element={<ErrorBoundary><RootRedirect /></ErrorBoundary>} />
         <Route path="/login-gateway" element={<Navigate to="/login" replace />} />
@@ -195,10 +230,14 @@ const App = () => (
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </Suspense>
+
+    {/* Shell-level overlays — loaded lazily but kept outside Suspense route tree */}
+    <Suspense fallback={null}>
       <ChatBot />
       <CommandPalette />
-    </BrowserRouter>
-    </ChatProvider>
+    </Suspense>
+  </BrowserRouter>
 );
 
 const RequireAuth = ({ children }) => {

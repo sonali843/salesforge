@@ -9,7 +9,7 @@ const { recordAudit } = require("../services/auditService");
 // In production, this would connect to a real ML model (TensorFlow, PyTorch, etc.)
 // For now, we use a sophisticated rule-based system that mimics ML behavior.
 
-const MIN_HISTORICAL_LEADS = 10;
+const MIN_HISTORICAL_LEADS = 1;
 
 // Calculates conversion-rate-based weights from real historical outcomes.
 // Returns null if there isn't enough data yet (cold start) — caller should
