@@ -312,20 +312,56 @@ const kanbanView = asyncHandler(async (req, res) => {
 
 const metrics = asyncHandler(async (req, res) => {
   const orgId = req.orgId;
-  const [total, won, lost, open, sumAmount, wonAmount, lostAmount] = await Promise.all([
+
+  // Fetch active deals to compute open, commit, bestCase, and weightedPipeline
+  const activeDeals = await prisma.deal.findMany({
+    where: { orgId, status: "ACTIVE" },
+    select: { amount: true, probability: true }
+  });
+
+  // Calculate open, commit, bestCase, and weightedPipeline
+  const open = { count: 0, amount: 0 };
+  const commit = { count: 0, amount: 0 };
+  const bestCase = { count: 0, amount: 0 };
+  let weightedPipeline = 0;
+
+  for (const deal of activeDeals) {
+    const amt = Number(deal.amount) || 0;
+    const prob = Number(deal.probability) || 0;
+
+    open.count += 1;
+    open.amount += amt;
+
+    if (prob >= 70) {
+      commit.count += 1;
+      commit.amount += amt;
+    }
+    if (prob >= 50) {
+      bestCase.count += 1;
+      bestCase.amount += amt;
+    }
+    weightedPipeline += amt * (prob / 100);
+  }
+
+  // Fetch counts and amounts for overall pipeline stats
+  const [total, won, lost, wonAmount, lostAmount] = await Promise.all([
     prisma.deal.count({ where: { orgId } }),
     prisma.deal.count({ where: { orgId, status: "COMPLETED" } }),
     prisma.deal.count({ where: { orgId, status: "INACTIVE" } }),
-    prisma.deal.count({ where: { orgId, status: "ACTIVE" } }),
-    prisma.deal.aggregate({ where: { orgId, status: "ACTIVE" }, _sum: { amount: true } }),
     prisma.deal.aggregate({ where: { orgId, status: "COMPLETED" }, _sum: { amount: true } }),
     prisma.deal.aggregate({ where: { orgId, status: "INACTIVE" }, _sum: { amount: true } }),
   ]);
+
   const wonRate = total > 0 ? Math.round((won / total) * 100) : 0;
-  const weightedPipeline = (sumAmount._sum.amount || 0) * 0.5; // rough weighted estimate
+
   return response.success(res, {
-    total, won, lost, open,
-    pipelineValue: sumAmount._sum.amount || 0,
+    total,
+    won,
+    lost,
+    open,
+    commit,
+    bestCase,
+    pipelineValue: open.amount,
     wonValue: wonAmount._sum.amount || 0,
     lostValue: lostAmount._sum.amount || 0,
     wonRate,

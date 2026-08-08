@@ -25,7 +25,7 @@ const createNotification = async ({
   // Fire SSE event so the NotificationBell updates in real time.
   eventBus.publish(`user:${userId}`, {
     event: "notification.new",
-    payload: { id: notification.id, type, message },
+    payload: { id: notification.id, type, message, category: "system" },
     at: new Date().toISOString(),
   });
 
@@ -132,20 +132,30 @@ const dispatchNotification = async ({
     ? category.charAt(0).toUpperCase() + category.slice(1) + " Notification"
     : "New Notification";
 
-  // 1. IN-APP NOTIFICATION
+  // 1. IN-APP NOTIFICATION (creates DB row only when in_app is enabled)
   let notification = null;
   if (inAppEnabled) {
     notification = await prisma.notification.create({
       data: { userId: Number(userId), type, message, link, metadata },
     });
-
-    // Publish SSE event so the bell badge updates immediately.
-    eventBus.publish(`user:${userId}`, {
-      event: "notification.new",
-      payload: { id: notification.id, type, message, category },
-      at: new Date().toISOString(),
-    });
   }
+
+  // Always publish SSE so the frontend can decide what to render.
+  // inAppEnabled  → frontend refreshes the bell badge/list
+  // pushEnabled   → frontend fires a browser/OS Notification popup
+  // Both flags are sent so the frontend doesn't need to re-fetch prefs.
+  eventBus.publish(`user:${userId}`, {
+    event: "notification.new",
+    payload: {
+      id: notification?.id || null,
+      type,
+      message,
+      category,
+      inAppEnabled,
+      pushEnabled,
+    },
+    at: new Date().toISOString(),
+  });
 
   // 2. PUSH NOTIFICATION
   if (pushEnabled) {

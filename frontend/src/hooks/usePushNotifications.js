@@ -2,10 +2,24 @@ import { useEffect, useState, useRef } from 'react';
 import { getFirebaseMessaging, firebaseConfig } from '../lib/firebase';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
+import { notificationPrefService } from '../services';
 
 export const usePushNotifications = (scrollThreshold = 0.7) => {
   const [token, setToken] = useState(null);
+  const [prefs, setPrefs] = useState([]);
   const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    const fetchPrefs = async () => {
+      try {
+        const data = await notificationPrefService.list();
+        setPrefs(data || []);
+      } catch (err) {
+        console.error("Error fetching notification preferences in hook:", err);
+      }
+    };
+    fetchPrefs();
+  }, []);
 
   useEffect(() => {
     let unsubscribe = null;
@@ -18,6 +32,15 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
       const { onMessage } = await import('firebase/messaging');
       unsubscribe = onMessage(messaging, (payload) => {
         console.log("Foreground message received:", payload);
+        
+        // Show native system desktop notification popup
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification(payload.notification?.title || "New Notification", {
+            body: payload.notification?.body || "You have a new message",
+            icon: payload.notification?.imageUrl || "/favicon.ico",
+          });
+        }
+
         toast(payload.notification?.title || "New Notification", {
           description: payload.notification?.body || "You have a new message",
         });
@@ -33,7 +56,16 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
     };
   }, []);
 
-  const requestPermissionAndSubscribe = async () => {
+  const requestPermissionAndSubscribe = async (bypassPrefCheck = false) => {
+    // Respect push preferences unless bypassed (e.g., when explicitly toggled in settings)
+    if (!bypassPrefCheck && prefs.length > 0) {
+      const hasPushEnabled = prefs.some(p => p.channel === 'push' && p.enabled);
+      if (!hasPushEnabled) {
+        console.log("Push notifications are disabled in user preferences. Skipping auto-subscription.");
+        return;
+      }
+    }
+
     try {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
@@ -66,10 +98,10 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
   };
 
   useEffect(() => {
-    if ("Notification" in window && Notification.permission === "granted") {
-      requestPermissionAndSubscribe();
+    if ("Notification" in window && Notification.permission === "granted" && prefs.length > 0) {
+      requestPermissionAndSubscribe(false);
     }
-  }, []);
+  }, [prefs]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -84,16 +116,16 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
       if (scrolledPercentage >= scrollThreshold) {
         scrolledRef.current = true;
         if (Notification.permission === 'default') {
-          requestPermissionAndSubscribe();
+          requestPermissionAndSubscribe(false);
         } else if (Notification.permission === 'granted') {
-          requestPermissionAndSubscribe();
+          requestPermissionAndSubscribe(false);
         }
       }
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [scrollThreshold]);
+  }, [scrollThreshold, prefs]);
 
-  return { requestPermissionAndSubscribe, token };
+  return { requestPermissionAndSubscribe, token, prefs, setPrefs };
 };

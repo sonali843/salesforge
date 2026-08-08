@@ -1,5 +1,9 @@
 require("dotenv").config();
 
+// Initialize Firebase Admin SDK early so push notifications work.
+// config/firebase.js uses a singleton guard (getApps().length) so it is safe to require multiple times.
+require("./config/firebase");
+
 const cors = require("cors");
 const express = require("express");
 const morgan = require("morgan");
