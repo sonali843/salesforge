@@ -1,5 +1,3 @@
-const { redisClient } = require("../config/redis");
-
 const { prisma } = require("../config/postgres");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
@@ -40,42 +38,13 @@ const updateCurrentUser = asyncHandler(async (req, res) => {
   });
 
 
-  // Cache Invalidation
-  const keys = await redisClient.keys(
-  `users:${req.user.organizationId}:*`
-    );
 
-
-  if (keys.length > 0) {
-    await redisClient.del(keys);
-  }
 
   return response.success(res, getSafeUser(user));
 });
 
 const listUsers = asyncHandler(async (req, res) => {
   const { page = 1, limit = 30, search } = req.query;
-
-  const cacheKey = `users:${req.orgId}:${page}:${limit}:${search || ""}`;
-
-  // Try Redis only if it's connected
-  let cachedData = null;
-
-  if (redisClient.isOpen) {
-    cachedData = await redisClient.get(cacheKey);
-  }
-
-  if (cachedData) {
-    const data = JSON.parse(cachedData);
-
-    return response.paginated(
-      res,
-      data.users,
-      data.total,
-      page,
-      limit
-    );
-  }
 
   const where = { organizationId: req.orgId };
 
@@ -105,17 +74,6 @@ const listUsers = asyncHandler(async (req, res) => {
     }),
     prisma.user.count({ where }),
   ]);
-
-  // Store in Redis only if it's connected
-  if (redisClient.isOpen) {
-    await redisClient.set(
-      cacheKey,
-      JSON.stringify({ users, total }),
-      {
-        EX: 300,
-      }
-    );
-  }
 
   return response.paginated(res, users, total, page, limit);
 });

@@ -285,8 +285,20 @@ const deleteDeal = asyncHandler(async (req, res) => {
   if (!deal) throw new AppError("Deal not found.", 404);
   await prisma.deal.delete({ where: { id: deal.id } });
   await recordAudit({ userId: req.user.id, orgId: req.orgId, action: "deal.delete", entityType: "Deal", entityId: deal.id });
+  
+  await dispatchNotification({
+    userId: req.user.id,
+    orgId: req.orgId,
+    type: "DEAL_DELETED",
+    category: "deal",
+    message: `Deal "${deal.title || 'Deal'}" deleted.`,
+    link: `/deals`,
+    metadata: { dealId: deal.id }
+  });
+
   return response.success(res, { message: "Deal deleted." });
 });
+
 
 // FIX 1: kanbanView crash fix (investors include kiya)
 const kanbanView = asyncHandler(async (req, res) => {
