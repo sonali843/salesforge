@@ -5,6 +5,7 @@ import { FaSun, FaMoon, FaUser, FaLock, FaGlobe, FaShieldAlt } from "react-icons
 import { useTheme } from "../../../context/ThemeContext";
 import { userService, notificationPrefService } from "../../../services";
 import { toast } from "sonner";
+import { usePushNotifications } from "../../../hooks/usePushNotifications";
 
 // Categories the backend tracks preferences for (see notificationPrefController.js).
 // The Settings page exposes a single "Email Notifications" master toggle, so saving
@@ -68,7 +69,19 @@ const Settings1 = () => {
   const [email,         setEmail]         = useState("");
   const [password,      setPassword]      = useState("");
   const [language,      setLanguage]      = useState("English");
-  const [notifications, setNotifications] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [websiteNotifications, setWebsiteNotifications] = useState(true);
+  const [mobileNotifications, setMobileNotifications] = useState(true);
+
+  const { requestPermissionAndSubscribe } = usePushNotifications();
+
+  const handleMobileNotificationChange = (checked) => {
+    setMobileNotifications(checked);
+    if (checked) {
+      // Bypassing preference check because the user is explicitly turning it on
+      requestPermissionAndSubscribe(true);
+    }
+  };
   const [publicprofile, setPublicprofile] = useState(false);
   const [saved,         setSaved]         = useState(false);
   const [saving,        setSaving]        = useState(false);
@@ -87,17 +100,25 @@ const Settings1 = () => {
     }
   }, [user]);
 
-  // Load the user's real email-notification preference from the backend so the
-  // toggle reflects what is actually saved, instead of always defaulting to off.
+  // Load the user's real notification preferences from the backend.
   useEffect(() => {
     let cancelled = false;
     notificationPrefService
       .list()
       .then((prefs) => {
         if (cancelled) return;
+        
         const emailPrefs = (prefs || []).filter((p) => p.channel === "email");
-        const allEnabled = emailPrefs.length > 0 && emailPrefs.every((p) => p.enabled);
-        setNotifications(allEnabled);
+        const allEmailEnabled = emailPrefs.length > 0 && emailPrefs.every((p) => p.enabled);
+        setEmailNotifications(allEmailEnabled);
+
+        const inAppPrefs = (prefs || []).filter((p) => p.channel === "in_app");
+        const allInAppEnabled = inAppPrefs.length > 0 && inAppPrefs.every((p) => p.enabled);
+        setWebsiteNotifications(allInAppEnabled);
+
+        const pushPrefs = (prefs || []).filter((p) => p.channel === "push");
+        const allPushEnabled = pushPrefs.length > 0 && pushPrefs.every((p) => p.enabled);
+        setMobileNotifications(allPushEnabled);
       })
       .catch(() => {
         // Keep the current toggle state if preferences can't be loaded.
@@ -129,15 +150,25 @@ const Settings1 = () => {
         updateUser(updatedUser);
       }
 
-      // Persist the email notification preference for real, across every
-      // category, so the toggle actually controls whether emails go out.
-      await notificationPrefService.update(
-        NOTIFICATION_CATEGORIES.map((category) => ({
+      // Persist the notification preferences across all categories and channels.
+      const prefsToUpdate = [
+        ...NOTIFICATION_CATEGORIES.map((category) => ({
           channel: "email",
           category,
-          enabled: notifications,
+          enabled: emailNotifications,
+        })),
+        ...NOTIFICATION_CATEGORIES.map((category) => ({
+          channel: "in_app",
+          category,
+          enabled: websiteNotifications,
+        })),
+        ...NOTIFICATION_CATEGORIES.map((category) => ({
+          channel: "push",
+          category,
+          enabled: mobileNotifications,
         }))
-      );
+      ];
+      await notificationPrefService.update(prefsToUpdate);
 
       setSaved(true);
       toast.success("Settings saved.");
@@ -277,7 +308,17 @@ const Settings1 = () => {
 
         <div style={rowStyle}>
           <span style={rowLabel}>Email Notifications</span>
-          <TogglePill checked={notifications} onChange={setNotifications} dark={dark} />
+          <TogglePill checked={emailNotifications} onChange={setEmailNotifications} dark={dark} />
+        </div>
+
+        <div style={rowStyle}>
+          <span style={rowLabel}>Website Notifications</span>
+          <TogglePill checked={websiteNotifications} onChange={setWebsiteNotifications} dark={dark} />
+        </div>
+
+        <div style={rowStyle}>
+          <span style={rowLabel}>Mobile Notifications</span>
+          <TogglePill checked={mobileNotifications} onChange={handleMobileNotificationChange} dark={dark} />
         </div>
 
         <div style={{ marginBottom: 4 }}>

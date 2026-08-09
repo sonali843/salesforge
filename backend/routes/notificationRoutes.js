@@ -10,6 +10,8 @@ router.use(protect, tenantScope);
 router.get("/", ctrl.listNotifications);
 router.patch("/read-all", ctrl.readAllNotifications);
 router.patch("/:id/read", ctrl.readNotification);
+router.delete("/:id", ctrl.deleteNotification);
+router.delete("/", ctrl.deleteAllNotifications);
 router.post("/broadcast", permit("OWNER", "ADMIN"), ctrl.broadcast);
 router.post("/test-email", ctrl.testEmail);
 

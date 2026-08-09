@@ -142,4 +142,24 @@ const testEmail = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { listNotifications, readNotification, readAllNotifications, broadcast, testEmail };
+const deleteNotification = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const notification = await prisma.notification.findFirst({
+    where: { id: Number(id), userId: req.user.id }
+  });
+  if (!notification) return response.error(res, "Notification not found.", 404);
+
+  await prisma.notification.delete({
+    where: { id: notification.id }
+  });
+  return response.success(res, { message: "Notification deleted." });
+});
+
+const deleteAllNotifications = asyncHandler(async (req, res) => {
+  const result = await prisma.notification.deleteMany({
+    where: { userId: req.user.id }
+  });
+  return response.success(res, { message: "All notifications cleared.", deletedCount: result.count });
+});
+
+module.exports = { listNotifications, readNotification, readAllNotifications, broadcast, testEmail, deleteNotification, deleteAllNotifications };

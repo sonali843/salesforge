@@ -1,24 +1,16 @@
 const { prisma } = require("../config/postgres");
 
-let getMessaging = null;
-let getApps = () => [];
-
-try {
-  getMessaging = require("firebase-admin/messaging").getMessaging;
-  getApps = require("firebase-admin/app").getApps;
-} catch (_) {
-  try {
-    const admin = require("firebase-admin");
-    getMessaging = () => admin.messaging && admin.messaging();
-    getApps = () => (admin.apps || []);
-  } catch (e) {
-    // Firebase fallback
-  }
-}
+// Firebase Admin is initialized in config/firebase.js which is required by app.js before any routes.
+// We import getMessaging and getApps here directly; they are always available since firebase-admin is a dep.
+const { getMessaging } = require("firebase-admin/messaging");
+const { getApps } = require("firebase-admin/app");
 
 /**
  * Sends a push notification to all devices registered to a specific user.
- * 
+ *
+ * Respects the user's push preference: callers in dispatchNotification already
+ * guard this call behind `pushEnabled`, so here we only handle FCM mechanics.
+ *
  * @param {number} userId - The ID of the user to send the notification to.
  * @param {object} payload - The notification payload.
  * @param {string} payload.title - The title of the notification.
@@ -28,6 +20,12 @@ try {
  */
 const sendPushNotification = async (userId, { title, body, icon }) => {
   try {
+    // Guard: Firebase Admin must be initialized (requires FIREBASE_* env vars)
+    if (!getApps().length) {
+      console.warn("[PushService] Firebase Admin is not initialized. Skipping push.");
+      return { success: false, message: "Firebase Admin is not initialized." };
+    }
+
     const fcmTokens = await prisma.fcmToken.findMany({
       where: { userId: Number(userId) },
     });
@@ -38,12 +36,6 @@ const sendPushNotification = async (userId, { title, body, icon }) => {
 
     const tokens = fcmTokens.map((t) => t.token);
 
-    // Check if firebase admin is initialized
-    if (!getApps().length) {
-      console.warn("Firebase Admin is not initialized. Cannot send push notification.");
-      return { success: false, message: "Firebase Admin is not initialized." };
-    }
-
     const message = {
       notification: {
         title: title || "New Notification",
@@ -51,14 +43,14 @@ const sendPushNotification = async (userId, { title, body, icon }) => {
       },
       tokens,
     };
-    
+
     if (icon) {
       message.notification.imageUrl = icon;
     }
 
     const response = await getMessaging().sendEachForMulticast(message);
-    
-    // Clean up failed tokens (invalid or expired)
+
+    // Clean up invalid / expired tokens so the list stays fresh.
     if (response.failureCount > 0) {
       const failedTokens = [];
       response.responses.forEach((resp, idx) => {
@@ -77,8 +69,11 @@ const sendPushNotification = async (userId, { title, body, icon }) => {
         await prisma.fcmToken.deleteMany({
           where: { token: { in: failedTokens } },
         });
+        console.log(`[PushService] Removed ${failedTokens.length} stale FCM token(s) for user ${userId}.`);
       }
     }
+
+    console.log(`[PushService] Sent to ${response.successCount}/${tokens.length} device(s) for user ${userId}.`);
 
     return {
       success: true,
@@ -87,7 +82,7 @@ const sendPushNotification = async (userId, { title, body, icon }) => {
       failedCount: response.failureCount,
     };
   } catch (error) {
-    console.error("Error sending push notification:", error);
+    console.error("[PushService] Error sending push notification:", error);
     return { success: false, error: error.message };
   }
 };

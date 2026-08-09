@@ -192,6 +192,10 @@ test("AI Lead Scoring Controller Actions", async (t) => {
     ];
 
     prisma.lead.findMany.mock.mockImplementation(async (query) => {
+      // Return empty array for historical leads check so weights fallback to defaults (6 factors)
+      if (query && query.where && query.where.status) {
+        return [];
+      }
       // Return mock leads for both findMany queries (one in main filter, one for topLeads)
       return mockLeads;
     });

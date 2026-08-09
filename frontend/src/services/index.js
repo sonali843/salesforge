@@ -107,6 +107,8 @@ export const notificationService = {
   list: (params) => unwrap(api.get("/notifications", { params })),
   markRead: (id) => unwrap(api.patch(`/notifications/${id}/read`)),
   markAllRead: () => unwrap(api.patch("/notifications/read-all")),
+  remove: (id) => unwrap(api.delete(`/notifications/${id}`)),
+  clearAll: () => unwrap(api.delete("/notifications")),
   unreadCount: async () => {
     const data = await unwrap(api.get("/notifications", { params: { limit: 1 } }));
     return data?.summary?.unreadCount || 0;
@@ -250,6 +252,12 @@ export const commentService = {
 export const notificationPrefService = {
   list: () => unwrap(api.get("/notification-preferences")),
   update: (preferences) => unwrap(api.put("/notification-preferences", { preferences })),
+  patchOne: (category, channel, enabled) => unwrap(api.patch("/notification-preferences", { category, channel, enabled })),
+};
+
+export const pushService = {
+  subscribe: (token) => unwrap(api.post("/push/subscribe", { token })),
+  notify: (data) => unwrap(api.post("/push/notify", data)),
 };
 
 export const integrationMarketplaceService = {
