@@ -19,7 +19,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "razorpay": "^2.9.8",
-    "redis": "^6.1.0"
+    "razorpay": "^2.9.8"
   }
 }

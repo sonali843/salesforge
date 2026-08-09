@@ -1,26 +1,5 @@
-const { createClient } = require("redis");
-
-const redisClient = createClient({
-  url: process.env.REDIS_URL || "redis://localhost:6379",
-  socket: {
-    reconnectStrategy: false,
-  },
-});
-
-redisClient.on("error", (err) => {
-  console.error("Redis Error:", err);
-});
-
-const connectRedis = async () => {
-  try {
-    await redisClient.connect();
-    console.log("✅ Redis Connected");
-  } catch (err) {
-    console.warn("⚠️ Redis unavailable. Continuing without Redis.");
-  }
-};
-
+// Redis config removed. Using in-memory fallback.
 module.exports = {
-  redisClient,
-  connectRedis,
+  redisClient: { isOpen: false },
+  connectRedis: async () => {}
 };
