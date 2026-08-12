@@ -25,11 +25,11 @@ test("Deployment — vercel.json uses config version 2", () => {
   assert.strictEqual(cfg.version, 2, "vercel.json version must be 2");
 });
 
-test("Deployment — vercel.json defines outputDirectory pointing to frontend/dist", () => {
+test("Deployment — vercel.json defines outputDirectory pointing to dist", () => {
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "vercel.json"), "utf8"));
   assert.ok(
-    cfg.outputDirectory && cfg.outputDirectory.includes("frontend/dist"),
-    `outputDirectory must include 'frontend/dist', got: ${cfg.outputDirectory}`
+    cfg.outputDirectory && cfg.outputDirectory === "dist",
+    `outputDirectory must be 'dist', got: ${cfg.outputDirectory}`
   );
 });
 

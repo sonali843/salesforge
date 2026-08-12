@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "installCommand": "npm install --prefix backend --legacy-peer-deps && npm install --prefix frontend --legacy-peer-deps",
-  "buildCommand": "npm --prefix backend run prisma:generate && npm --prefix frontend run build",
-  "outputDirectory": "frontend/dist",
+  "installCommand": "npm install --legacy-peer-deps && npm install --prefix ../backend --legacy-peer-deps",
+  "buildCommand": "(cd ../backend && npx prisma generate) && npm run build",
+  "outputDirectory": "dist",
   "routes": [
     {
       "src": "/api/(.*)",
