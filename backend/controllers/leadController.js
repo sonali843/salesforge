@@ -73,6 +73,16 @@ const mapUpdateInput = (body) => {
 };
 
 const createLead = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const existingLead = await prisma.lead.findUnique({ where: { email } });
+  if (existingLead) {
+    if (existingLead.orgId === req.orgId) {
+      return response.success(res, existingLead);
+    } else {
+      throw new AppError("A lead with this email already exists in another workspace.", 400);
+    }
+  }
+
   const lead = await prisma.lead.create({
     data: {
       ...mapCreateInput(req.body),
@@ -81,7 +91,7 @@ const createLead = asyncHandler(async (req, res) => {
     },
     include: LEAD_INCLUDE,
   });
-  await updateLeadScore(lead.id);
+  // await updateLeadScore(lead.id);
   const updated = await prisma.lead.findUnique({ where: { id: lead.id }, include: LEAD_INCLUDE });
   
   // ---------------------------------------------------------------------------
@@ -230,9 +240,9 @@ const updateLead = asyncHandler(async (req, res) => {
   await publish({ orgId: req.orgId, event: "LEAD_UPDATED", payload: { leadId: lead.id } });
 
   if (changes.length > 0) {
-    const targetUserId = lead.ownerId ? lead.ownerId : req.user.id;
+    const targetUserId = lead.assignedToId ? lead.assignedToId : req.user.id;
     // Don't notify the user if they made the change themselves, unless they are the only one to notify
-    if (targetUserId !== req.user.id || !lead.ownerId) {
+    if (targetUserId !== req.user.id || !lead.assignedToId) {
       await dispatchNotification({
         userId: targetUserId,
         orgId: req.orgId,

@@ -96,7 +96,7 @@ const register = asyncHandler(async (req, res) => {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing && existing.isVerified) {
-    throw new AppError("An account with this email already exists.", 409);
+    throw new AppError("An account with this email already exists.", 400);
   }
 
   // Determine org placement: prefer explicit invite token, else create personal workspace.
