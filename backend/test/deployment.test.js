@@ -13,7 +13,7 @@ const ROOT    = path.resolve(__dirname, "../../");
 const BACKEND = path.resolve(__dirname, "../");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUITE 1 — vercel.json
+// SUITE 1 — vercel.json (Root & Subdirectory)
 // ─────────────────────────────────────────────────────────────────────────────
 test("Deployment — vercel.json exists at project root", () => {
   const p = path.join(ROOT, "vercel.json");
@@ -69,6 +69,26 @@ test("Deployment — vercel.json has static assets route to bypass SPA fallback"
   assert.ok(staticRoute, "vercel.json must have a static assets route (js, css etc.)");
 });
 
+test("Deployment — frontend/vercel.json exists for subdirectory Vercel configuration", () => {
+  const p = path.join(ROOT, "frontend", "vercel.json");
+  assert.ok(fs.existsSync(p), "frontend/vercel.json must exist");
+});
+
+test("Deployment — frontend/vercel.json routing and commands are correctly configured", () => {
+  const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "frontend", "vercel.json"), "utf8"));
+  assert.strictEqual(cfg.version, 2);
+  assert.strictEqual(cfg.outputDirectory, "dist");
+  assert.ok(cfg.installCommand && cfg.installCommand.includes("../backend"));
+  assert.ok(cfg.buildCommand && cfg.buildCommand.includes("../backend"));
+  
+  // Verify routing
+  const fallback = cfg.routes.find(r => r.src === "/(.*)" && r.dest === "/index.html");
+  assert.ok(fallback, "frontend/vercel.json must have SPA fallback routing");
+  const apiRoute = cfg.routes.find(r => r.src && r.src.includes("api") && r.dest && r.dest.includes("api/index.js"));
+  assert.ok(apiRoute, "frontend/vercel.json must route /api/* requests to api/index.js");
+});
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SUITE 2 — Prisma schema binaryTargets
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +140,24 @@ test("Deployment — api/index.js imports from backend/app and exports it", () =
     "api/index.js must export the app via module.exports for Vercel serverless"
   );
 });
+
+test("Deployment — frontend/api/index.js exists (Vercel subdirectory serverless entrypoint)", () => {
+  const p = path.join(ROOT, "frontend", "api", "index.js");
+  assert.ok(fs.existsSync(p), "frontend/api/index.js must exist");
+});
+
+test("Deployment — frontend/api/index.js imports from backend/app and exports it", () => {
+  const content = fs.readFileSync(path.join(ROOT, "frontend", "api", "index.js"), "utf8");
+  assert.ok(
+    content.includes("backend/app") || content.includes("../../backend/app"),
+    "frontend/api/index.js must import the Express app from backend/app relatively"
+  );
+  assert.ok(
+    content.includes("module.exports"),
+    "frontend/api/index.js must export the app via module.exports"
+  );
+});
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUITE 4 — Root package.json build scripts

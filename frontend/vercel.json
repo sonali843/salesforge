@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "installCommand": "npm install --legacy-peer-deps && npm install --prefix ../backend --legacy-peer-deps",
+  "buildCommand": "(cd ../backend && npx prisma generate) && npm run build",
+  "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "api/index.js"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|webp|svg|ico|json|woff2?|ttf|eot|map|webmanifest|txt|jpg|jpeg|gif|mp4|mp3|pdf|zip|wasm)$)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
