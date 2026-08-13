@@ -109,10 +109,24 @@ const Leads = () => {
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id, e) => {
+    if (e) e.stopPropagation();
     if (!confirm("Delete this lead?")) return;
-    try { await leadService.remove(id); toast.success("Deleted"); load(page); }
-    catch (e) { toast.error(e.message); }
+    
+    // Optimistic UI update for instant feedback
+    const previousItems = [...items];
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setTotal((t) => Math.max(0, t - 1));
+
+    try { 
+      await leadService.remove(id); 
+      toast.success("Lead deleted"); 
+    } catch (err) { 
+      // Rollback on failure
+      setItems(previousItems);
+      setTotal((t) => t + 1);
+      toast.error(err.message || "Failed to delete lead"); 
+    }
   };
 
   return (
@@ -277,7 +291,7 @@ const Leads = () => {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        {isMember && <button onClick={() => remove(l.id)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>}
+                        {isMember && <button onClick={(e) => remove(l.id, e)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>}
                       </td>
                     </tr>
                   ))}

@@ -19,6 +19,12 @@ const sourceValues = [
   "trade_show",
   "partner",
   "other",
+  "import",
+  "api",
+  "database_search",
+  "domain_search",
+  "email_search",
+  "social_search"
 ];
 const emailSchema = Joi.string()
   .trim()
@@ -30,6 +36,8 @@ const leadPayload = {
   email: emailSchema,
   phone: Joi.string().trim().max(30).allow("", null),
   domain: Joi.string().trim().max(120).allow("", null),
+  companyName: Joi.string().trim().max(120).allow("", null),
+  jobTitle: Joi.string().trim().max(120).allow("", null),
   status: Joi.string()
     .trim()
     .valid(...statusValues)
@@ -41,6 +49,7 @@ const leadPayload = {
   engagement: Joi.object().unknown(true).optional(),
 };
 
+
 const createLeadSchema = Joi.object(leadPayload);
 
 const updateLeadSchema = Joi.object({
@@ -48,6 +57,8 @@ const updateLeadSchema = Joi.object({
   email: Joi.string().trim().email({ tlds: { allow: false } }),
   phone: Joi.string().trim().max(30).allow("", null),
   domain: Joi.string().trim().max(120).allow("", null),
+  companyName: Joi.string().trim().max(120).allow("", null),
+  jobTitle: Joi.string().trim().max(120).allow("", null),
   status: Joi.string()
     .trim()
     .valid(...statusValues),

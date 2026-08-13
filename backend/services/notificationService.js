@@ -186,21 +186,22 @@ const dispatchNotification = async ({
       // SECURITY: 'to' is ALWAYS user.email (fetched fresh from DB above).
       // EMAIL_USER is ONLY the sender account — never the recipient.
       console.log(`[NotificationService] Sending Email to ${user.email}`);
-      const success = await send({
+      send({
         to: user.email,
         subject,
         html,
         text,
+      }).then(success => {
+        if (success) {
+          console.log(`[NotificationService] Email Sent Successfully to ${user.email}`);
+        } else {
+          console.error(`[NotificationService] SMTP Failure for ${user.email}`);
+        }
+      }).catch(err => {
+        console.error(`[NotificationService] SMTP Failure for ${user.email}:`, err);
       });
-
-      if (success) {
-        console.log(`[NotificationService] Email Sent Successfully to ${user.email}`);
-      } else {
-        console.error(`[NotificationService] SMTP Failure for ${user.email}`);
-      }
     } catch (err) {
-      console.error(`[NotificationService] SMTP Failure for ${user ? user.email : userId}:`, err);
-      // Continue the remaining notification pipeline even when SMTP/email flow fails.
+      console.error(`[NotificationService] SMTP Setup Failure for ${user ? user.email : userId}:`, err);
     }
   }
 

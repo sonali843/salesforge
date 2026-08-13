@@ -21,9 +21,11 @@ if (firebaseConfig.projectId) {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
     const notificationTitle = payload.notification?.title || 'New Notification';
     const notificationOptions = {
-      body: payload.notification?.body || 'You have a new message.',
-      icon: payload.notification?.imageUrl || '/favicon.ico',
+      body: payload.notification?.body || 'You have a new message.'
     };
+    if (payload.notification?.imageUrl) {
+      notificationOptions.icon = payload.notification.imageUrl;
+    }
 
     self.registration.showNotification(notificationTitle, notificationOptions);
   });

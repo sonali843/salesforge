@@ -11,6 +11,9 @@ const { connectPostgres, prisma } = require("./config/postgres");
 const logger = require("./utils/logger");
 const jobs = require("./jobs/followupJob");
 
+// Initialize Firebase Admin for Push Notifications
+require("./config/firebase");
+
 const startServer = async (port = Number(process.env.PORT || 3000)) => {
   await connectPostgres();
   await connectRedis();
