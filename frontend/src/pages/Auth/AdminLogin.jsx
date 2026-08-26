@@ -93,10 +93,8 @@ const AdminLogin = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  return (
-    <div className="flex min-h-screen font-inter bg-white">
+  };  return (
+    <div className="flex min-h-screen font-inter bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       <div className="hidden md:block w-1/3 h-screen relative p-0 m-0 overflow-hidden">
         <button
           onClick={() => navigate("/")}
@@ -112,54 +110,54 @@ const AdminLogin = () => {
         />
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-950">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center flex flex-col items-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-              <ShieldCheck className="w-8 h-8 text-slate-800" />
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+              <ShieldCheck className="w-8 h-8 text-slate-800 dark:text-slate-200" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 tracking-widest">ADMIN LOGIN</h2>
-            <p className="text-slate-500 text-sm mt-1">Secure Management Gateway</p>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-widest">ADMIN LOGIN</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Secure Management Gateway</p>
           </div>
 
           <div className="mt-8 space-y-6">
             {error && (
-              <p className="text-red-600 bg-red-50 p-3 rounded-lg flex items-center text-sm border border-red-100">
+              <p className="text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-3 rounded-lg flex items-center text-sm border border-red-100 dark:border-red-900/50">
                 <XCircle className="w-5 h-5 mr-2 shrink-0" /> {error}
               </p>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Admin Email
                 </label>
                 <div className="relative">
-                  <Mail className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Mail className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="admin@example.com"
-                    className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                    className="w-full pl-11 pr-4 py-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-slate-200 focus:border-transparent transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <input
                     type="password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                    className="w-full pl-11 pr-4 py-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-800 dark:focus:ring-slate-200 focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -167,7 +165,7 @@ const AdminLogin = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-slate-900 text-white font-medium py-3 rounded-xl hover:bg-slate-800 focus:ring-4 focus:ring-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-slate-900 dark:bg-slate-800 text-white font-medium py-3 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-700 focus:ring-4 focus:ring-slate-200 dark:focus:ring-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isLoading ? (
                   <>
@@ -181,10 +179,10 @@ const AdminLogin = () => {
 
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-3 text-slate-400">Or continue with</span>
+                <span className="bg-white dark:bg-slate-950 px-3 text-slate-400">Or continue with</span>
               </div>
             </div>
 

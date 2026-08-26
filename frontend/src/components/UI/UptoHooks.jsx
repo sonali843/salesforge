@@ -15,10 +15,10 @@ export const useUptoStyles = () => {
     pageBg: darkMode ? "min-h-screen transition-colors duration-300 bg-slate-950" : "min-h-screen transition-colors duration-300 bg-gradient-to-br from-slate-50 via-white to-slate-100",
     card: darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100",
     // Typography
-    heading: darkMode ? "text-white" : "text-slate-900",
-    subtext: darkMode ? "text-slate-400" : "text-slate-500",
-    body: darkMode ? "text-slate-300" : "text-slate-600",
-    muted: darkMode ? "text-slate-500" : "text-slate-400",
+    heading: darkMode ? "text-white" : "text-slate-950",
+    subtext: darkMode ? "text-slate-300" : "text-slate-600",
+    body: darkMode ? "text-slate-200" : "text-slate-800",
+    muted: darkMode ? "text-slate-400" : "text-slate-500",
     // Borders
     divider: darkMode ? "border-slate-800" : "border-slate-200",
     input: darkMode ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400",
@@ -35,31 +35,39 @@ export const useUptoStyles = () => {
   };
 };
 
-export const UptoSectionHeading = ({ label, darkMode, action = null }) => (
-  <div className="mb-7 flex items-end justify-between">
-    <div>
-      <h2 className={`text-xl font-semibold mb-2 ${darkMode ? "text-white" : "text-slate-900"}`}>{label}</h2>
-      <div className="w-10 h-[3px] bg-gradient-to-r from-[#00b5ad] to-[#e76937] rounded-full" />
-    </div>
-    {action}
-  </div>
-);
-
-export const UptoHero = ({ title, subtitle, darkMode, actions = null }) => (
-  <div className="relative overflow-hidden -mx-6 md:-mx-10 lg:-mx-16 px-6 md:px-10 lg:px-16 py-10 md:py-14">
-    <div className="absolute inset-0 pointer-events-none">
-      <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${darkMode ? "bg-blue-900/20" : "bg-blue-300/20"}`} />
-      <div className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl ${darkMode ? "bg-teal-900/15" : "bg-teal-300/15"}`} />
-    </div>
-    <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+export const UptoSectionHeading = ({ label, darkMode, action = null }) => {
+  const { theme } = useTheme();
+  const isDark = darkMode ?? (theme === "dark");
+  return (
+    <div className="mb-7 flex items-end justify-between">
       <div>
-        <h1 className={`text-3xl md:text-4xl font-semibold mb-2 leading-tight ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h1>
-        {subtitle && <p className={`text-base ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{subtitle}</p>}
+        <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>{label}</h2>
+        <div className="w-10 h-[3px] bg-gradient-to-r from-[#00b5ad] to-[#e76937] rounded-full" />
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {action}
     </div>
-  </div>
-);
+  );
+};
+
+export const UptoHero = ({ title, subtitle, darkMode, actions = null }) => {
+  const { theme } = useTheme();
+  const isDark = darkMode ?? (theme === "dark");
+  return (
+    <div className="relative overflow-hidden -mx-6 md:-mx-10 lg:-mx-16 px-6 md:px-10 lg:px-16 py-10 md:py-14">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? "bg-blue-900/20" : "bg-blue-300/20"}`} />
+        <div className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl ${isDark ? "bg-teal-900/15" : "bg-teal-300/15"}`} />
+      </div>
+      <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <h1 className={`text-3xl md:text-4xl font-semibold mb-2 leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{title}</h1>
+          {subtitle && <p className={`text-base ${isDark ? "text-slate-400" : "text-slate-500"}`}>{subtitle}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      </div>
+    </div>
+  );
+};
 
 export const UptoButton = ({ children, variant = "primary", className = "", ...props }) => {
   const { theme } = useTheme();
@@ -196,8 +204,12 @@ export const UptoCopyButton = ({ value, className = "" }) => {
   );
 };
 
-export const UptoProgressBar = ({ value, max = 100, darkMode }) => (
-  <div className={`h-2 w-full overflow-hidden rounded-full ${darkMode ? "bg-slate-800" : "bg-slate-100"}`}>
-    <div className="h-full bg-gradient-to-r from-[#00b5ad] to-[#2dd4bf] transition-all" style={{ width: `${Math.max(0, Math.min(100, (value / max) * 100))}%` }} />
-  </div>
-);
+export const UptoProgressBar = ({ value, max = 100, darkMode }) => {
+  const { theme } = useTheme();
+  const isDark = darkMode ?? (theme === "dark");
+  return (
+    <div className={`h-2 w-full overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
+      <div className="h-full bg-gradient-to-r from-[#00b5ad] to-[#2dd4bf] transition-all" style={{ width: `${Math.max(0, Math.min(100, (value / max) * 100))}%` }} />
+    </div>
+  );
+};

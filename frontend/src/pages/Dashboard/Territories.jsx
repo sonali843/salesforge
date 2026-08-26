@@ -32,9 +32,18 @@ const Territories = () => {
 
       {metrics && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <UptoCard><div className="text-xs text-slate-500">Total accounts</div><div className="text-2xl font-semibold">{metrics.total || 0}</div></UptoCard>
-          <UptoCard><div className="text-xs text-slate-500">Regions</div><div className="text-2xl font-semibold">{Object.keys(metrics.byRegion || {}).length}</div></UptoCard>
-          <UptoCard><div className="text-xs text-slate-500">Industries</div><div className="text-2xl font-semibold">{Object.keys(metrics.byType || {}).length}</div></UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Total accounts</div>
+            <div className="text-2xl font-semibold text-slate-900 dark:text-white">{metrics.total || 0}</div>
+          </UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Regions</div>
+            <div className="text-2xl font-semibold text-slate-900 dark:text-white">{Object.keys(metrics.byRegion || {}).length}</div>
+          </UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Industries</div>
+            <div className="text-2xl font-semibold text-slate-900 dark:text-white">{Object.keys(metrics.byType || {}).length}</div>
+          </UptoCard>
         </div>
       )}
 
@@ -47,9 +56,9 @@ const Territories = () => {
         {!loading && !error && items.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {items.map((t) => (
-              <div key={t.id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="font-medium">{t.name}</div>
-                <div className="text-xs text-slate-500 mt-1">{t.region} · {t.type || "All"}</div>
+              <div key={t.id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50">
+                <div className="font-medium text-slate-900 dark:text-white">{t.name}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t.region} · {t.type || "All"}</div>
                 <div className="mt-2"><UptoBadge>{t.accountCount || 0} accounts</UptoBadge></div>
               </div>
             ))}

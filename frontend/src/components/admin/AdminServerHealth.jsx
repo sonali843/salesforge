@@ -7,9 +7,9 @@ import { api, unwrap } from "../../lib/api";
 
 const StatusBadge = ({ status }) => {
   const config = {
-    operational: { color: "bg-green-100 text-green-700", icon: <CheckCircle size={14} />, label: "Operational" },
-    high_latency: { color: "bg-amber-100 text-amber-700", icon: <AlertTriangle size={14} />, label: "High Latency" },
-    degraded: { color: "bg-red-100 text-red-700", icon: <AlertTriangle size={14} />, label: "Degraded" },
+    operational: { color: "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400", icon: <CheckCircle size={14} />, label: "Operational" },
+    high_latency: { color: "bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400", icon: <AlertTriangle size={14} />, label: "High Latency" },
+    degraded: { color: "bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400", icon: <AlertTriangle size={14} />, label: "Degraded" },
   };
   const c = config[status] || config.operational;
   return (
@@ -20,13 +20,13 @@ const StatusBadge = ({ status }) => {
 };
 
 const HealthCard = ({ icon: Icon, title, children, status }) => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-slate-100">
-          <Icon size={20} className="text-slate-600" />
+        <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
+          <Icon size={20} className="text-slate-600 dark:text-slate-350" />
         </div>
-        <h3 className="font-semibold text-slate-800">{title}</h3>
+        <h3 className="font-semibold text-slate-800 dark:text-white">{title}</h3>
       </div>
       {status && <StatusBadge status={status} />}
     </div>
@@ -35,10 +35,10 @@ const HealthCard = ({ icon: Icon, title, children, status }) => (
 );
 
 const MetricRow = ({ label, value, suffix }) => (
-  <div className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-    <span className="text-sm text-slate-500">{label}</span>
-    <span className="text-sm font-medium text-slate-800">
-      {value}{suffix && <span className="text-slate-400 ml-1">{suffix}</span>}
+  <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800/40 last:border-0">
+    <span className="text-sm text-slate-500 dark:text-slate-400">{label}</span>
+    <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+      {value}{suffix && <span className="text-slate-400 dark:text-slate-500 ml-1">{suffix}</span>}
     </span>
   </div>
 );
@@ -80,10 +80,10 @@ const AdminServerHealth = () => {
 
   if (loading && !health) {
     return (
-      <main className="flex-1 p-8 bg-slate-50 overflow-y-auto flex items-center justify-center">
+      <main className="flex-1 p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="animate-spin text-teal-600" />
-          <span className="text-slate-500 text-sm">Checking server health...</span>
+          <span className="text-slate-500 dark:text-slate-400 text-sm">Checking server health...</span>
         </div>
       </main>
     );
@@ -91,10 +91,10 @@ const AdminServerHealth = () => {
 
   if (error && !health) {
     return (
-      <main className="flex-1 p-8 bg-slate-50 overflow-y-auto flex items-center justify-center">
+      <main className="flex-1 p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center">
         <div className="text-center space-y-4">
           <AlertTriangle size={40} className="text-amber-500 mx-auto" />
-          <p className="text-slate-600">{error}</p>
+          <p className="text-slate-600 dark:text-slate-300">{error}</p>
           <button onClick={fetchHealth} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-500 transition-colors text-sm inline-flex items-center gap-2">
             <RefreshCw size={14} /> Retry
           </button>
@@ -113,25 +113,25 @@ const AdminServerHealth = () => {
   const allOperational = db.status === "operational" && apiHealth.status === "operational" && email.status === "operational";
 
   return (
-    <main className="flex-1 p-8 bg-slate-50 overflow-y-auto">
+    <main className="flex-1 p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Server Health</h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Server Health</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Real-time system monitoring and diagnostics
           </p>
         </div>
         <div className="flex items-center gap-3">
           {lastRefresh && (
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-400 dark:text-slate-500">
               Last updated: {lastRefresh.toLocaleTimeString()}
             </span>
           )}
           <button
             onClick={fetchHealth}
             disabled={loading}
-            className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors inline-flex items-center gap-2 disabled:opacity-50"
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-2 disabled:opacity-50"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             Refresh
@@ -140,9 +140,9 @@ const AdminServerHealth = () => {
       </div>
 
       {/* Overall Status Banner */}
-      <div className={`p-4 rounded-xl mb-8 flex items-center gap-3 ${allOperational ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"}`}>
+      <div className={`p-4 rounded-xl mb-8 flex items-center gap-3 ${allOperational ? "bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/50" : "bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50"}`}>
         <div className={`w-3 h-3 rounded-full ${allOperational ? "bg-green-500 animate-pulse" : "bg-amber-500 animate-pulse"}`}></div>
-        <span className={`font-medium text-sm ${allOperational ? "text-green-700" : "text-amber-700"}`}>
+        <span className={`font-medium text-sm ${allOperational ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400"}`}>
           {allOperational ? "All Systems Operational" : "Some Systems Experiencing Issues"}
         </span>
       </div>
@@ -155,10 +155,10 @@ const AdminServerHealth = () => {
           <MetricRow label="Status" value={db.status === "operational" ? "Connected" : "Issues Detected"} />
           <div className="mt-3">
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-400">Response Time</span>
-              <span className="text-slate-500">{db.latencyMs}ms</span>
+              <span className="text-slate-400 dark:text-slate-500">Response Time</span>
+              <span className="text-slate-500 dark:text-slate-400">{db.latencyMs}ms</span>
             </div>
-            <div className="w-full bg-slate-100 rounded-full h-2">
+            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
               <div
                 className={`h-2 rounded-full transition-all duration-500 ${db.latencyMs < 100 ? "bg-green-500" : db.latencyMs < 500 ? "bg-amber-500" : "bg-red-500"}`}
                 style={{ width: `${Math.min(100, Math.max(5, (1 - db.latencyMs / 1000) * 100))}%` }}
@@ -173,10 +173,10 @@ const AdminServerHealth = () => {
           <MetricRow label="Hours" value={apiHealth.uptimeHours} suffix="hrs" />
           <div className="mt-3">
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-400">Uptime Health</span>
-              <span className="text-slate-500">99.9%</span>
+              <span className="text-slate-400 dark:text-slate-500">Uptime Health</span>
+              <span className="text-slate-500 dark:text-slate-400">99.9%</span>
             </div>
-            <div className="w-full bg-slate-100 rounded-full h-2">
+            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
               <div className="bg-green-500 h-2 rounded-full w-[99%] transition-all duration-500"></div>
             </div>
           </div>
@@ -190,10 +190,10 @@ const AdminServerHealth = () => {
           <MetricRow label="External" value={mem.external} />
           <div className="mt-3">
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-400">Heap Usage</span>
-              <span className="text-slate-500">{mem.heapUsedPercent}%</span>
+              <span className="text-slate-400 dark:text-slate-500">Heap Usage</span>
+              <span className="text-slate-500 dark:text-slate-400">{mem.heapUsedPercent}%</span>
             </div>
-            <div className="w-full bg-slate-100 rounded-full h-2">
+            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
               <div
                 className={`h-2 rounded-full transition-all duration-500 ${mem.heapUsedPercent < 60 ? "bg-green-500" : mem.heapUsedPercent < 80 ? "bg-amber-500" : "bg-red-500"}`}
                 style={{ width: `${mem.heapUsedPercent || 0}%` }}
@@ -208,19 +208,19 @@ const AdminServerHealth = () => {
           <MetricRow label="Provider" value="SMTP" />
           <div className="mt-4 space-y-2">
             <div className="flex items-center gap-2 text-sm">
-              <Key size={14} className="text-slate-400" />
-              <span className="text-slate-500">Active API Keys:</span>
-              <span className="font-medium text-slate-800">{resources.activeApiKeys || 0}</span>
+              <Key size={14} className="text-slate-455 dark:text-slate-500" />
+              <span className="text-slate-500 dark:text-slate-400">Active API Keys:</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{resources.activeApiKeys || 0}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <Wifi size={14} className="text-slate-400" />
-              <span className="text-slate-500">Active Webhooks:</span>
-              <span className="font-medium text-slate-800">{resources.activeWebhooks || 0}</span>
+              <Wifi size={14} className="text-slate-455 dark:text-slate-500" />
+              <span className="text-slate-500 dark:text-slate-400">Active Webhooks:</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{resources.activeWebhooks || 0}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <Bell size={14} className="text-slate-400" />
-              <span className="text-slate-500">Total Notifications:</span>
-              <span className="font-medium text-slate-800">{resources.totalNotifications || 0}</span>
+              <Bell size={14} className="text-slate-455 dark:text-slate-500" />
+              <span className="text-slate-500 dark:text-slate-400">Total Notifications:</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{resources.totalNotifications || 0}</span>
             </div>
           </div>
         </HealthCard>

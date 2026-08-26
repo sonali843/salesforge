@@ -1,87 +1,121 @@
-// Contracts page.
 import React, { useEffect, useState } from "react";
-import { contractService } from "@/services";
+import { contactService } from "@/services";
 import {
   UptoPage, UptoHero, UptoButton, UptoInput, UptoBadge,
   UptoSpinner, UptoError, UptoEmptyState, UptoCard,
 } from "@/components/UI/UptoHooks";
-import { FileSignature, Plus } from "lucide-react";
+import { User, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-const Contracts = () => {
+const Contacts = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [draft, setDraft] = useState({ title: "", counterparty: "", value: "", startDate: "", endDate: "" });
+  const [draft, setDraft] = useState({ firstName: "", lastName: "", email: "", phone: "", jobTitle: "" });
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await contractService.list({ limit: 100 });
+      const res = await contactService.list({ limit: 100 });
       setItems(res?.items || res || []);
       setError(null);
-    } catch (e) { setError(e?.message || "Failed to load"); }
-    finally { setLoading(false); }
+    } catch (e) {
+      setError(e?.message || "Failed to load contacts");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!draft.title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
-
-    if (
-      draft.startDate &&
-      draft.endDate &&
-      new Date(draft.endDate) < new Date(draft.startDate)
-    ) {
-      toast.error("End date must be after the start date");
+    if (!draft.firstName.trim() && !draft.lastName.trim()) {
+      toast.error("First Name or Last Name is required");
       return;
     }
     try {
-      await contractService.create({ ...draft, value: Number(draft.value) });
-      toast.success("Contract created");
+      await contactService.create(draft);
+      toast.success("Contact created successfully");
       setShowCreate(false);
-      setDraft({ title: "", counterparty: "", value: "", startDate: "", endDate: "" });
+      setDraft({ firstName: "", lastName: "", email: "", phone: "", jobTitle: "" });
       load();
-    } catch (err) { toast.error(err?.message || "Create failed"); }
+    } catch (err) {
+      toast.error(err?.message || "Failed to create contact");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this contact?")) return;
+    try {
+      await contactService.remove(id);
+      toast.success("Contact removed successfully");
+      load();
+    } catch (err) {
+      toast.error(err?.message || "Failed to delete contact");
+    }
   };
 
   return (
     <UptoPage>
       <UptoHero
-        title="Contracts"
-        subtitle="Track contract lifecycle and renewals"
-        actions={<UptoButton onClick={() => setShowCreate(true)}><Plus className="mr-1 h-4 w-4 inline" /> New contract</UptoButton>}
+        title="Contacts"
+        subtitle="Manage leads, customers, and key organizational contacts"
+        actions={
+          <UptoButton onClick={() => setShowCreate(true)}>
+            <Plus className="mr-1 h-4 w-4 inline" /> New Contact
+          </UptoButton>
+        }
       />
       <UptoCard>
         {loading && <UptoSpinner />}
         {error && <UptoError message={error} onRetry={load} />}
         {!loading && !error && items.length === 0 && (
-          <UptoEmptyState icon={FileSignature} title="No contracts" body="Track deals and renewals from this view." />
+          <UptoEmptyState
+            icon={User}
+            title="No Contacts"
+            body="Start building your network by adding key business contacts."
+          />
         )}
         {!loading && !error && items.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 dark:border-slate-700 text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Title</th>
-                  <th className="px-3 py-2">Counterparty</th>
-                  <th className="px-3 py-2">Value</th>
-                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-3">Name</th>
+                  <th className="px-3 py-3">Email</th>
+                  <th className="px-3 py-3">Phone</th>
+                  <th className="px-3 py-3">Job Title</th>
+                  <th className="px-3 py-3">Company</th>
+                  <th className="px-3 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="px-3 py-2 font-medium">{c.title}</td>
-                    <td className="px-3 py-2">{c.counterparty || "—"}</td>
-                    <td className="px-3 py-2">${(c.value || 0).toLocaleString()}</td>
-                    <td className="px-3 py-2"><UptoBadge>{c.status || "draft"}</UptoBadge></td>
+                  <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <td className="px-3 py-3 font-medium text-slate-900 dark:text-white">
+                      {c.firstName} {c.lastName}
+                    </td>
+                    <td className="px-3 py-3 text-slate-650 dark:text-slate-355">{c.email || "—"}</td>
+                    <td className="px-3 py-3 text-slate-650 dark:text-slate-355">{c.phone || "—"}</td>
+                    <td className="px-3 py-3 text-slate-650 dark:text-slate-355">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        {c.jobTitle || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-slate-650 dark:text-slate-355">{c.companyName || "—"}</td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="p-1 text-slate-400 hover:text-red-500 rounded-md transition-colors"
+                        title="Delete contact"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -89,92 +123,47 @@ const Contracts = () => {
           </div>
         )}
       </UptoCard>
+
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <form onSubmit={handleCreate} className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">New contract</h3>
-            <div className="space-y-3">
-              <UptoInput label="Title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} required />
-              <UptoInput label="Counterparty" value={draft.counterparty} onChange={(e) => setDraft({ ...draft, counterparty: e.target.value })} />
-            <UptoInput
-  label="Value"
-  type="number"
-  min={0}
-  step="0.01"
-  value={draft.value}
-  onChange={(e) => {
-    const value = e.target.value;
-
-    if (value === "") {
-      setDraft((p) => ({
-        ...p,
-        value: "",
-      }));
-      return;
-    }
-
-    const num = Number(value);
-
-    if (num < 0) return;
-
-    setDraft((p) => ({
-      ...p,
-      value: num,
-    }));
-  }}
-/>
-
-    <UptoInput
-  label="Start date"
-  type="date"
-  max="3000-12-31"
-  value={draft.startDate}
-  onChange={(e) => {
-    const value = e.target.value;
-
-    if (value) {
-      const date = new Date(value);
-
-      if (!isNaN(date.getTime()) && date.getFullYear() > 3000) {
-        toast.error("Year cannot be greater than 3000");
-        return;
-      }
-    }
-
-    setDraft((p) => ({
-      ...p,
-      startDate: value,
-    }));
-  }}
-/>
-
-    <UptoInput
-  label="End date"
-  type="date"
-  max="3000-12-31"
-  value={draft.endDate}
-  onChange={(e) => {
-    const value = e.target.value;
-
-    if (value) {
-      const date = new Date(value);
-
-      if (!isNaN(date.getTime()) && date.getFullYear() > 3000) {
-        toast.error("Year cannot be greater than 3000");
-        return;
-      }
-    }
-
-    setDraft((p) => ({
-      ...p,
-      endDate: value,
-    }));
-  }}
-/>
-
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <form
+            onSubmit={handleCreate}
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-xl"
+          >
+            <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">New Contact</h3>
+            <div className="space-y-4">
+              <UptoInput
+                label="First Name"
+                value={draft.firstName}
+                onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
+                required
+              />
+              <UptoInput
+                label="Last Name"
+                value={draft.lastName}
+                onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
+              />
+              <UptoInput
+                label="Email"
+                type="email"
+                value={draft.email}
+                onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+              />
+              <UptoInput
+                label="Phone"
+                value={draft.phone}
+                onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+              />
+              <UptoInput
+                label="Job Title"
+                value={draft.jobTitle}
+                onChange={(e) => setDraft({ ...draft, jobTitle: e.target.value })}
+              />
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <UptoButton type="button" variant="ghost" onClick={() => setShowCreate(false)}>Cancel</UptoButton>
+            <div className="mt-6 flex justify-end gap-2">
+              <UptoButton type="button" variant="ghost" onClick={() => setShowCreate(false)}>
+                Cancel
+              </UptoButton>
               <UptoButton type="submit">Create</UptoButton>
             </div>
           </form>
@@ -184,4 +173,4 @@ const Contracts = () => {
   );
 };
 
-export default Contracts;
+export default Contacts;

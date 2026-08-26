@@ -53,6 +53,14 @@ const createOrganization = asyncHandler(async (req, res) => {
   data.slug = `${slugify(data.name)}-${req.orgId}`;
   data.status = "ACTIVE";
 
+  const existingSlug = await prisma.organization.findUnique({
+    where: { slug: data.slug },
+  });
+
+  if (existingSlug && existingSlug.id !== req.orgId) {
+    throw new AppError("An organization with a similar name already exists.", 400);
+  }
+
   const org = await prisma.organization.update({
     where: { id: req.orgId },
     data,

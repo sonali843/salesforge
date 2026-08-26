@@ -55,18 +55,18 @@ const ProfessionalInsightsDashboard = () => {
   const { theme } = useTheme();
 
   const darkMode = theme === "dark";
-
   // 🎯 THEME TOKENS
   const bg = darkMode ? "bg-slate-950" : "";
   const card = darkMode
     ? "bg-slate-900 border-slate-800"
-    : "bg-white/80 border-white/30";
+    : "bg-white border-slate-200 shadow-sm";
 
   const headingPrimary = darkMode ? "text-white" : "text-gray-900";
-  const headingMuted = darkMode ? "text-slate-400" : "text-gray-600";
+  const headingMuted = darkMode ? "text-slate-400" : "text-gray-650";
 
-  const chartGridColor = darkMode ? "#1e293b" : "rgba(229,231,235,0.5)";
-  const chartTextColor = darkMode ? "#94a3b8" : "#9CA3AF";
+  const chartGridColor = darkMode ? "#1e293b" : "#94a3b8";
+  const chartTextColor = darkMode ? "#94a3b8" : "#1e293b";
+  const chartBorderColor = darkMode ? "#334155" : "#334155";
   const chartLineColor = darkMode ? "#a78bfa" : "#7c3aed";
 
   const userCanvasRef = useRef(null);
@@ -102,6 +102,14 @@ const ProfessionalInsightsDashboard = () => {
         }],
       },
       options: {
+        layout: {
+          padding: {
+            left: 5,
+            right: 5,
+            top: 5,
+            bottom: 5
+          }
+        },
         plugins: {
           legend: {
             labels: { color: chartTextColor }
@@ -115,11 +123,13 @@ const ProfessionalInsightsDashboard = () => {
         scales: {
           x: {
             grid: { color: chartGridColor },
-            ticks: { color: chartTextColor }
+            ticks: { color: chartTextColor },
+            border: { color: chartBorderColor, display: true, width: 2 }
           },
           y: {
             grid: { color: chartGridColor },
-            ticks: { color: chartTextColor }
+            ticks: { color: chartTextColor },
+            border: { color: chartBorderColor, display: true, width: 2 }
           }
         }
       }
@@ -157,9 +167,9 @@ const ProfessionalInsightsDashboard = () => {
     const count = useCountUp(value);
 
     return (
-      <div className={`rounded-2xl p-6 border bg-gradient-to-br ${gradient}`}>
+      <div className={`rounded-2xl p-6 border border-white/10 shadow-sm bg-gradient-to-br ${gradient}`}>
         <div className="flex justify-between mb-2">
-          <p className={`text-sm font-semibold ${headingMuted}`}>
+          <p className="text-sm font-semibold text-white/90">
             {title}
           </p>
           <span>{icon}</span>

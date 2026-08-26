@@ -73,6 +73,16 @@ const mapUpdateInput = (body) => {
 };
 
 const createLead = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const existingLead = await prisma.lead.findUnique({ where: { email } });
+  if (existingLead) {
+    if (existingLead.orgId === req.orgId) {
+      return response.success(res, existingLead);
+    } else {
+      throw new AppError("A lead with this email already exists in another workspace.", 400);
+    }
+  }
+
   const lead = await prisma.lead.create({
     data: {
       ...mapCreateInput(req.body),
@@ -81,7 +91,7 @@ const createLead = asyncHandler(async (req, res) => {
     },
     include: LEAD_INCLUDE,
   });
-  await updateLeadScore(lead.id);
+  // await updateLeadScore(lead.id);
   const updated = await prisma.lead.findUnique({ where: { id: lead.id }, include: LEAD_INCLUDE });
   
   // ---------------------------------------------------------------------------
@@ -90,7 +100,7 @@ const createLead = asyncHandler(async (req, res) => {
   // req.body.userId or any client-supplied field. The user's own preference
   // toggles determine whether they receive in-app, email, or push notifications.
   // ---------------------------------------------------------------------------
-  await dispatchNotification({
+  dispatchNotification({
     userId: req.user.id,
     orgId: req.orgId,
     type: "LEAD_CREATED",
@@ -98,26 +108,26 @@ const createLead = asyncHandler(async (req, res) => {
     message: `Lead ${lead.name} added to your pipeline.`,
     link: `/app/leads/${lead.id}`,
     metadata: { leadId: lead.id, leadName: lead.name },
-  });
+  }).catch(console.error);
   // TODO: Add similar dispatchNotification calls for:
   //   - BILLING category: in billingController after payment/invoice events
   //   - TEAM category:    in teamController after invite/join/role-change events
   //   - SYSTEM category:  in adminController for system-wide alerts
-  await recordActivity({
+  recordActivity({
     leadId: lead.id,
     userId: req.user.id,
     orgId: req.orgId,
     type: "CREATED",
     title: `${req.user.name} created this lead`,
-  });
-  await incrementUsage({ userId: req.user.id, orgId: req.orgId, resource: "leads" });
-  await recordAudit({
+  }).catch(console.error);
+  incrementUsage({ userId: req.user.id, orgId: req.orgId, resource: "leads" }).catch(console.error);
+  recordAudit({
     userId: req.user.id,
     orgId: req.orgId,
     action: "lead.create",
     entityType: "Lead",
     entityId: lead.id,
-  });
+  }).catch(console.error);
   await publish({ orgId: req.orgId, event: "LEAD_CREATED", payload: { leadId: lead.id, name: lead.name } });
   return response.created(res, updated);
 });
@@ -179,7 +189,7 @@ const updateLead = asyncHandler(async (req, res) => {
   // Record activity for meaningful changes.
   const changes = diffLead(before, lead);
   if (changes.length) {
-    await recordActivity({
+    recordActivity({
       leadId: lead.id,
       userId: req.user.id,
       orgId: req.orgId,
@@ -187,53 +197,53 @@ const updateLead = asyncHandler(async (req, res) => {
       title: `${req.user.name} updated ${changes.length} field${changes.length > 1 ? "s" : ""}`,
       body: summarizeChanges(changes),
       metadata: { changes },
-    });
+    }).catch(console.error);
   }
   if (req.body.status && before.status !== lead.status) {
-    await recordActivity({
+    recordActivity({
       leadId: lead.id,
       userId: req.user.id,
       orgId: req.orgId,
       type: "STATUS_CHANGED",
       title: `Status: ${before.status} → ${lead.status}`,
       metadata: { from: before.status, to: lead.status },
-    });
-    await publish({
+    }).catch(console.error);
+    publish({
       orgId: req.orgId,
       event: "LEAD_STATUS_CHANGED",
       payload: { leadId: lead.id, from: before.status, to: lead.status },
-    });
+    }).catch(console.error);
   }
   if (req.body.assignedToId !== undefined && before.assignedToId !== lead.assignedToId) {
-    await recordActivity({
+    recordActivity({
       leadId: lead.id,
       userId: req.user.id,
       orgId: req.orgId,
       type: "ASSIGNED",
       title: lead.assignedToId ? `Assigned to user #${lead.assignedToId}` : "Unassigned",
-    });
+    }).catch(console.error);
   }
 
   // Re-score if engagement-related fields changed.
   if (changes.some((c) => ["engagement", "source"].includes(c.field))) {
-    await updateLeadScore(lead.id);
+    updateLeadScore(lead.id).catch(console.error);
   }
 
-  await recordAudit({
+  recordAudit({
     userId: req.user.id,
     orgId: req.orgId,
     action: "lead.update",
     entityType: "Lead",
     entityId: lead.id,
     metadata: { fields: changes.map((c) => c.field) },
-  });
-  await publish({ orgId: req.orgId, event: "LEAD_UPDATED", payload: { leadId: lead.id } });
+  }).catch(console.error);
+  publish({ orgId: req.orgId, event: "LEAD_UPDATED", payload: { leadId: lead.id } }).catch(console.error);
 
   if (changes.length > 0) {
-    const targetUserId = lead.ownerId ? lead.ownerId : req.user.id;
+    const targetUserId = lead.assignedToId ? lead.assignedToId : req.user.id;
     // Don't notify the user if they made the change themselves, unless they are the only one to notify
-    if (targetUserId !== req.user.id || !lead.ownerId) {
-      await dispatchNotification({
+    if (targetUserId !== req.user.id || !lead.assignedToId) {
+      dispatchNotification({
         userId: targetUserId,
         orgId: req.orgId,
         type: "LEAD_UPDATED",
@@ -241,7 +251,7 @@ const updateLead = asyncHandler(async (req, res) => {
         message: `Lead ${lead.name} was updated by ${req.user.name}.`,
         link: `/app/leads/${lead.id}`,
         metadata: { leadId: lead.id, leadName: lead.name, changes: changes.map(c => c.field) },
-      });
+      }).catch(console.error);
     }
   }
 
@@ -253,16 +263,16 @@ const deleteLead = asyncHandler(async (req, res) => {
   const lead = await prisma.lead.findFirst({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (!lead) throw new AppError("Lead not found.", 404);
   await prisma.lead.delete({ where: { id: lead.id } });
-  await recordAudit({
+  recordAudit({
     userId: req.user.id,
     orgId: req.orgId,
     action: "lead.delete",
     entityType: "Lead",
     entityId: lead.id,
     metadata: { name: lead.name },
-  });
-  await publish({ orgId: req.orgId, event: "LEAD_DELETED", payload: { leadId: lead.id, name: lead.name } });
-  await dispatchNotification({
+  }).catch(console.error);
+  publish({ orgId: req.orgId, event: "LEAD_DELETED", payload: { leadId: lead.id, name: lead.name } }).catch(console.error);
+  dispatchNotification({
     userId: req.user.id,
     orgId: req.orgId,
     type: "LEAD_DELETED",
@@ -270,7 +280,7 @@ const deleteLead = asyncHandler(async (req, res) => {
     message: `Lead ${lead.name} was deleted.`,
     link: "/app/leads",
     metadata: { leadId: lead.id, leadName: lead.name },
-  });
+  }).catch(console.error);
   return response.success(res, { message: "Lead deleted." });
 });
 

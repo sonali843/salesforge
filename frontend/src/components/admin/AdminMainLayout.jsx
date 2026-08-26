@@ -103,10 +103,10 @@ const AdminMainLayout = () => {
 
   if (loading) {
     return (
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 overflow-y-auto flex items-center justify-center">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="animate-spin text-teal-600" />
-          <span className="text-slate-500 text-sm">Loading dashboard...</span>
+          <span className="text-slate-500 dark:text-slate-400 text-sm">Loading dashboard...</span>
         </div>
       </main>
     );
@@ -114,10 +114,10 @@ const AdminMainLayout = () => {
 
   if (error) {
     return (
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 overflow-y-auto flex items-center justify-center">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center">
         <div className="text-center space-y-4">
           <AlertTriangle size={40} className="text-amber-500 mx-auto" />
-          <p className="text-slate-600">{error}</p>
+          <p className="text-slate-600 dark:text-slate-300">{error}</p>
           <button
             onClick={fetchDashboard}
             className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-500 transition-colors text-sm inline-flex items-center gap-2"
@@ -130,7 +130,7 @@ const AdminMainLayout = () => {
   }
 
   return (
-    <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 overflow-y-auto">
+    <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <StatCard
@@ -165,9 +165,9 @@ const AdminMainLayout = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         {/* Main Table Area */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
-          <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 text-base sm:text-lg">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+          <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 dark:text-white text-base sm:text-lg">
               Recent Registrations
             </h3>
             <button
@@ -179,7 +179,7 @@ const AdminMainLayout = () => {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-500 font-medium">
+              <thead className="bg-slate-50 dark:bg-slate-850/50 text-slate-500 dark:text-slate-400 font-medium">
                 <tr>
                   <th className="p-3 sm:p-4">User</th>
                   <th className="p-3 sm:p-4">Role</th>
@@ -188,10 +188,10 @@ const AdminMainLayout = () => {
                   <th className="p-3 sm:p-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {recentUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-400 text-sm">
+                    <td colSpan={5} className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">
                       No recent registrations found
                     </td>
                   </tr>
@@ -199,27 +199,27 @@ const AdminMainLayout = () => {
                   recentUsers.map((user) => (
                     <tr
                       key={user.id}
-                      className="hover:bg-slate-50 transition-colors"
+                      className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors"
                     >
                       <td className="p-3 sm:p-4">
-                        <div className="font-medium text-slate-900">
+                        <div className="font-medium text-slate-900 dark:text-slate-100">
                           {user.name}
                         </div>
-                        <div className="text-slate-500 text-xs">{user.email}</div>
+                        <div className="text-slate-500 dark:text-slate-400 text-xs">{user.email}</div>
                       </td>
-                      <td className="p-3 sm:p-4 text-slate-600 text-xs">{user.role}</td>
+                      <td className="p-3 sm:p-4 text-slate-600 dark:text-slate-300 text-xs">{user.role}</td>
                       <td className="p-3 sm:p-4 hidden sm:table-cell">
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400">
                           Active
                         </span>
                       </td>
-                      <td className="p-3 sm:p-4 text-slate-500 text-xs">
+                      <td className="p-3 sm:p-4 text-slate-500 dark:text-slate-400 text-xs">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                       <td className="p-3 sm:p-4 text-right">
                         <button
                           onClick={() => navigate("/admin/users")}
-                          className="text-slate-400 hover:text-slate-600"
+                          className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-350"
                         >
                           <MoreVertical size={16} />
                         </button>
@@ -235,9 +235,9 @@ const AdminMainLayout = () => {
         {/* Side Widgets */}
         <div className="space-y-6">
           {/* System Health - LIVE DATA */}
-          <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-800">System Health</h3>
+              <h3 className="font-bold text-slate-800 dark:text-white">System Health</h3>
               <button
                 onClick={() => navigate("/admin/server-health")}
                 className="text-xs text-teal-600 hover:underline"
@@ -248,13 +248,13 @@ const AdminMainLayout = () => {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-600">Database API</span>
+                  <span className="text-slate-600 dark:text-slate-350">Database API</span>
                   <span className={`font-medium ${getHealthLabel(dbStatus).color}`}>
                     {getHealthLabel(dbStatus).label}
-                    {dbLatency > 0 && <span className="text-slate-400 text-xs ml-1">({dbLatency}ms)</span>}
+                    {dbLatency > 0 && <span className="text-slate-455 dark:text-slate-500 text-xs ml-1">({dbLatency}ms)</span>}
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-500 ${dbStatus === "operational" ? "bg-green-500" : dbStatus === "high_latency" ? "bg-amber-500" : "bg-red-500"}`}
                     style={{ width: `${getBarWidth(dbStatus, dbLatency)}%` }}
@@ -263,12 +263,12 @@ const AdminMainLayout = () => {
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-600">API Server</span>
+                  <span className="text-slate-600 dark:text-slate-350">API Server</span>
                   <span className={`font-medium ${getHealthLabel(apiStatus).color}`}>
                     {getHealthLabel(apiStatus).label}
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-500 ${apiStatus === "operational" ? "bg-green-500" : "bg-amber-500"}`}
                     style={{ width: `${apiStatus === "operational" ? 95 : 50}%` }}
@@ -277,12 +277,12 @@ const AdminMainLayout = () => {
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-600">Memory Usage</span>
-                  <span className={`font-medium ${memPercent < 80 ? "text-green-600" : "text-amber-500"}`}>
+                  <span className="text-slate-600 dark:text-slate-350">Memory Usage</span>
+                  <span className={`font-medium ${memPercent < 80 ? "text-green-600 dark:text-green-400" : "text-amber-500"}`}>
                     {memPercent}%
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-500 ${memPercent < 60 ? "bg-green-500" : memPercent < 80 ? "bg-amber-500" : "bg-red-500"}`}
                     style={{ width: `${memPercent}%` }}

@@ -32,9 +32,18 @@ const Commissions = () => {
 
       {metrics && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <UptoCard><div className="text-xs text-slate-500">Total</div><div className="text-2xl font-semibold">${(metrics.totalAmount || 0).toLocaleString()}</div></UptoCard>
-          <UptoCard><div className="text-xs text-slate-500">Paid</div><div className="text-2xl font-semibold text-emerald-600">${(metrics.totalPaid || 0).toLocaleString()}</div></UptoCard>
-          <UptoCard><div className="text-xs text-slate-500">Pending</div><div className="text-2xl font-semibold text-amber-600">${(metrics.totalPending || 0).toLocaleString()}</div></UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Total</div>
+            <div className="text-2xl font-semibold text-slate-900 dark:text-white">${(metrics.totalAmount || 0).toLocaleString()}</div>
+          </UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Paid</div>
+            <div className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">${(metrics.totalPaid || 0).toLocaleString()}</div>
+          </UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Pending</div>
+            <div className="text-2xl font-semibold text-amber-600 dark:text-amber-400">${(metrics.totalPending || 0).toLocaleString()}</div>
+          </UptoCard>
         </div>
       )}
 
@@ -58,11 +67,11 @@ const Commissions = () => {
               </thead>
               <tbody>
                 {items.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="px-3 py-2 font-medium">{c.user?.name || c.userId}</td>
+                  <tr key={c.id} className="border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">{c.user?.name || c.userId}</td>
                     <td className="px-3 py-2">${(c.amount || 0).toLocaleString()}</td>
                     <td className="px-3 py-2">{((c.rate || 0) * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-2 text-slate-500">{c.period || "—"}</td>
+                    <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{c.period || "—"}</td>
                     <td className="px-3 py-2"><UptoBadge>{c.status || "pending"}</UptoBadge></td>
                   </tr>
                 ))}

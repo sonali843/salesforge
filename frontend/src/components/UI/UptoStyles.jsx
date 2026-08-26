@@ -15,10 +15,10 @@ export const uptoskillsTokens = (darkMode) => ({
   cardHover: darkMode ? "hover:border-slate-700" : "hover:border-slate-200",
 
   // Typography
-  heading: darkMode ? "text-white" : "text-slate-900",
-  subtext: darkMode ? "text-slate-400" : "text-slate-500",
-  body: darkMode ? "text-slate-300" : "text-slate-600",
-  muted: darkMode ? "text-slate-500" : "text-slate-400",
+  heading: darkMode ? "text-white" : "text-slate-950",
+  subtext: darkMode ? "text-slate-300" : "text-slate-600",
+  body: darkMode ? "text-slate-200" : "text-slate-800",
+  muted: darkMode ? "text-slate-400" : "text-slate-500",
 
   // Brand colors
   brand: "#00b5ad",
@@ -50,14 +50,18 @@ export const uptoskillsTokens = (darkMode) => ({
   tooltipText: darkMode ? "#e2e8f0" : "#0f172a",
 });
 
-export const SectionHeading = ({ label, darkMode }) => (
-  <div className="mb-7">
-    <h2 className={`text-xl font-semibold mb-2 ${darkMode ? "text-white" : "text-slate-900"}`}>
-      {label}
-    </h2>
-    <div className="w-10 h-[3px] bg-linear-to-r from-[#00b5ad] to-[#e76937] rounded-full" />
-  </div>
-);
+export const SectionHeading = ({ label, darkMode }) => {
+  const { theme } = useTheme();
+  const isDark = darkMode ?? (theme === "dark");
+  return (
+    <div className="mb-7">
+      <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+        {label}
+      </h2>
+      <div className="w-10 h-[3px] bg-linear-to-r from-[#00b5ad] to-[#e76937] rounded-full" />
+    </div>
+  );
+};
 
 // UptoSkills page wrapper with the same background animation as Maindashboard
 export const UptoPage = ({ children, noPadding = false }) => {
@@ -74,6 +78,8 @@ export const UptoPage = ({ children, noPadding = false }) => {
 
 // UptoSkills analytics card (same as Maindashboard AnalyticsCard)
 export const UptoCard = ({ title, value, icon: Icon, trend, color = "primary", darkMode }) => {
+  const { theme } = useTheme();
+  const isDark = darkMode ?? (theme === "dark");
   const colorMap = {
     primary: {
       light: { bg: "bg-blue-50", text: "text-blue-600", icon: "bg-blue-100 text-blue-600", trend: "text-blue-500" },
@@ -96,23 +102,23 @@ export const UptoCard = ({ title, value, icon: Icon, trend, color = "primary", d
       dark:  { bg: "bg-teal-950/40", text: "text-teal-400", icon: "bg-teal-900/60 text-teal-400", trend: "text-teal-400" },
     },
   };
-  const palette = darkMode ? colorMap[color]?.dark : colorMap[color]?.light;
+  const palette = isDark ? colorMap[color]?.dark : colorMap[color]?.light;
   if (!palette) return null;
   return (
     <div
       className={`rounded-2xl p-6 border transition-colors duration-300 ${
-        darkMode ? `${palette.bg} border-slate-700/50` : `${palette.bg} border-transparent`
+        isDark ? `${palette.bg} border-slate-700/50` : `${palette.bg} border-transparent`
       }`}
     >
       <div className="flex items-center justify-between mb-4">
-        <span className={`text-sm font-medium ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+        <span className={`text-sm font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
           {title}
         </span>
         <div className={`p-2 rounded-xl ${palette.icon}`}>
           <Icon size={18} />
         </div>
       </div>
-      <p className={`text-3xl font-semibold mb-1 ${darkMode ? "text-white" : "text-slate-900"}`}>
+      <p className={`text-3xl font-semibold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>
         {value}
       </p>
       {trend && <p className={`text-xs font-medium ${palette.trend}`}>{trend}</p>}
@@ -121,6 +127,8 @@ export const UptoCard = ({ title, value, icon: Icon, trend, color = "primary", d
 };
 
 export const UptoToolCard = ({ title, description, path, buttonText, icon: Icon, color = "primary", darkMode, onClick }) => {
+  const { theme } = useTheme();
+  const isDark = darkMode ?? (theme === "dark");
   const palettes = {
     primary: {
       light: { gradient: "from-blue-50 to-blue-100/40", border: "border-blue-200", accent: "bg-blue-500 hover:bg-blue-600" },
@@ -143,7 +151,7 @@ export const UptoToolCard = ({ title, description, path, buttonText, icon: Icon,
       dark:  { gradient: "from-teal-950/50 to-teal-900/30", border: "border-teal-800/50", accent: "bg-teal-600 hover:bg-teal-500" },
     },
   };
-  const palette = darkMode ? palettes[color]?.dark : palettes[color]?.light;
+  const palette = isDark ? palettes[color]?.dark : palettes[color]?.light;
   if (!palette) return null;
   return (
     <div
@@ -155,10 +163,10 @@ export const UptoToolCard = ({ title, description, path, buttonText, icon: Icon,
         <div className={`inline-flex items-center justify-center p-2.5 rounded-xl mb-4 text-white ${palette.accent.split(" ")[0]}`}>
           {Icon && <Icon size={20} />}
         </div>
-        <h3 className={`text-lg font-semibold mb-2 ${darkMode ? "text-white" : "text-slate-900"}`}>
+        <h3 className={`text-lg font-semibold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
           {title}
         </h3>
-        <p className={`text-sm leading-relaxed mb-6 ${darkMode ? "text-slate-300" : "text-slate-600"}`}>
+        <p className={`text-sm leading-relaxed mb-6 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
           {description}
         </p>
         <button

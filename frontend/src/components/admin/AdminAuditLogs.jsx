@@ -43,10 +43,10 @@ const AdminAuditLogs = () => {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const getActionColor = (action) => {
-    if (action?.includes("create") || action?.includes("login")) return "text-green-700 bg-green-50";
-    if (action?.includes("update") || action?.includes("edit")) return "text-blue-700 bg-blue-50";
-    if (action?.includes("delete") || action?.includes("revoke")) return "text-red-700 bg-red-50";
-    return "text-slate-700 bg-slate-50";
+    if (action?.includes("create") || action?.includes("login")) return "text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30";
+    if (action?.includes("update") || action?.includes("edit")) return "text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30";
+    if (action?.includes("delete") || action?.includes("revoke")) return "text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30";
+    return "text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40";
   };
 
   const formatDate = (dateStr) => {
@@ -60,24 +60,24 @@ const AdminAuditLogs = () => {
   };
 
   return (
-    <main className="flex-1 p-8 bg-slate-50 overflow-y-auto">
+    <main className="flex-1 p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Audit Logs</h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Audit Logs</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {total} audit entries across the platform
           </p>
         </div>
         <div className="flex items-center gap-2">
           <form onSubmit={handleSearch} className="flex items-center gap-2">
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search actions, users..."
-                className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 bg-white placeholder-slate-400 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none w-64"
+                className="pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none w-64"
               />
             </div>
             <button
@@ -90,7 +90,7 @@ const AdminAuditLogs = () => {
           <button
             onClick={fetchLogs}
             disabled={loading}
-            className="p-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-50"
+            className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -99,23 +99,23 @@ const AdminAuditLogs = () => {
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center gap-3 text-red-700 text-sm">
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 rounded-lg flex items-center gap-3 text-red-700 dark:text-red-400 text-sm">
           <AlertTriangle size={18} />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 flex items-center justify-center">
             <Loader2 size={28} className="animate-spin text-teal-600" />
-            <span className="ml-3 text-slate-500 text-sm">Loading audit logs...</span>
+            <span className="ml-3 text-slate-500 dark:text-slate-400 text-sm">Loading audit logs...</span>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                <thead className="bg-slate-50 dark:bg-slate-850/50 text-slate-500 dark:text-slate-400 font-medium border-b border-slate-100 dark:border-slate-800">
                   <tr>
                     <th className="p-4">Timestamp</th>
                     <th className="p-4">User</th>
@@ -125,23 +125,23 @@ const AdminAuditLogs = () => {
                     <th className="p-4">IP Address</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {logs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-400">
-                        <FileText size={32} className="mx-auto mb-2 text-slate-300" />
+                      <td colSpan={6} className="p-8 text-center text-slate-400 dark:text-slate-500">
+                        <FileText size={32} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                         No audit logs found
                       </td>
                     </tr>
                   ) : (
                     logs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                      <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors">
                         <td className="p-4">
-                          <div className="flex items-center gap-2 text-slate-600">
-                            <Clock size={14} className="text-slate-400 shrink-0" />
+                          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                            <Clock size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
                             <div>
                               <div className="text-xs font-medium">{formatDate(log.createdAt)}</div>
-                              <div className="text-xs text-slate-400">{formatTime(log.createdAt)}</div>
+                              <div className="text-xs text-slate-400 dark:text-slate-500">{formatTime(log.createdAt)}</div>
                             </div>
                           </div>
                         </td>
@@ -152,12 +152,12 @@ const AdminAuditLogs = () => {
                                 {(log.user.name || "?").charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <div className="text-xs font-medium text-slate-800">{log.user.name}</div>
-                                <div className="text-xs text-slate-400">{log.user.email}</div>
+                                <div className="text-xs font-medium text-slate-800 dark:text-slate-200">{log.user.name}</div>
+                                <div className="text-xs text-slate-400 dark:text-slate-500">{log.user.email}</div>
                               </div>
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic text-xs">System</span>
+                            <span className="text-slate-400 dark:text-slate-500 italic text-xs">System</span>
                           )}
                         </td>
                         <td className="p-4">
@@ -166,22 +166,22 @@ const AdminAuditLogs = () => {
                           </span>
                         </td>
                         <td className="p-4">
-                          <div className="text-xs text-slate-600">{log.entityType}</div>
+                          <div className="text-xs text-slate-600 dark:text-slate-300">{log.entityType}</div>
                           {log.entityId && (
-                            <div className="text-xs text-slate-400">ID: {log.entityId}</div>
+                            <div className="text-xs text-slate-400 dark:text-slate-500">ID: {log.entityId}</div>
                           )}
                         </td>
                         <td className="p-4">
                           {log.org ? (
-                            <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                              <Building size={12} className="text-slate-400" />
+                            <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                              <Building size={12} className="text-slate-400 dark:text-slate-500" />
                               {log.org.name}
                             </div>
                           ) : (
-                            <span className="text-slate-400 text-xs">—</span>
+                            <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
                           )}
                         </td>
-                        <td className="p-4 text-xs text-slate-500 font-mono">
+                        <td className="p-4 text-xs text-slate-500 dark:text-slate-400 font-mono">
                           {log.ipAddress || "—"}
                         </td>
                       </tr>
@@ -193,22 +193,22 @@ const AdminAuditLogs = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-sm text-slate-500">
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-sm text-slate-500 dark:text-slate-400">
                   Page {page} of {totalPages} ({total} entries)
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1}
-                    className="p-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronLeft size={16} />
                   </button>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
-                    className="p-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronRight size={16} />
                   </button>

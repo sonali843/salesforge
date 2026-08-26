@@ -95,7 +95,7 @@ const testEmail = asyncHandler(async (req, res) => {
         ? [{ orgId: Number(orgId) }, { orgId: null }]
         : [{ orgId: null }],
     },
-    orderBy: { orgId: "desc" },
+    orderBy: { orgId: { sort: "desc", nulls: "last" } },
   });
 
   const emailPref = prefs.find(p => p.channel === "email");

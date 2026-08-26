@@ -455,8 +455,12 @@ export default function IntelHub({ defaultModule = "email_intelligence" }) {
               disabled={!query}
               className={`p-2.5 rounded-lg border flex items-center gap-1.5 text-xs font-semibold transition-all duration-200 ${
                 query
-                  ? isDark ? "bg-slate-900 border-slate-800 hover:bg-slate-800 text-teal-400" : "bg-white border-slate-200 hover:bg-slate-50 text-teal-600"
-                  : "opacity-40 cursor-not-allowed text-slate-400"
+                  ? isDark
+                    ? "bg-teal-950/40 border-teal-800/80 hover:bg-teal-900/60 text-teal-400 cursor-pointer"
+                    : "bg-teal-50 border-teal-200 hover:bg-teal-100/85 text-teal-600 cursor-pointer"
+                  : isDark
+                    ? "bg-slate-900 border-slate-700 text-slate-300 cursor-not-allowed"
+                    : "bg-slate-100 border-slate-300 text-slate-700 cursor-not-allowed"
               }`}
             >
               <Bookmark className="h-4 w-4" />

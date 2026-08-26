@@ -2,10 +2,12 @@ import { useEffect, useState, useRef } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { getFirebaseMessaging, firebaseConfig } from '../lib/firebase';
 import { toast } from 'sonner';
-import { api } from '../lib/api';
-
+import { pushService } from '../services';
 export const usePushNotifications = (scrollThreshold = 0.7) => {
   const [token, setToken] = useState(null);
+  const [permission, setPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "default"
+  );
   const scrolledRef = useRef(false);
 
   useEffect(() => {
@@ -17,9 +19,27 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
 
       unsubscribe = onMessage(messaging, (payload) => {
         console.log("Foreground message received:", payload);
-        toast(payload.notification?.title || "New Notification", {
-          description: payload.notification?.body || "You have a new message",
-        });
+        const title = payload.notification?.title || "New Notification";
+        const body = payload.notification?.body || "You have a new message";
+        
+        // Show in-app toast
+        toast(title, { description: body });
+
+        // Force a native OS desktop notification even if tab is open
+        if ("Notification" in window && Notification.permission === "granted") {
+          const opts = { body: body };
+          if (payload.notification?.imageUrl) opts.icon = payload.notification.imageUrl;
+
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(title, opts).catch(err => {
+              console.error("SW showNotification failed, trying window Notification:", err);
+              new Notification(title, opts);
+            });
+          }).catch(err => {
+             console.error("SW ready failed:", err);
+             new Notification(title, opts);
+          });
+        }
       });
     };
 
@@ -42,8 +62,9 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
 
   const requestPermissionAndSubscribe = async () => {
     try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
+      const currentPermission = await Notification.requestPermission();
+      setPermission(currentPermission);
+      if (currentPermission === 'granted') {
         const messaging = await getFirebaseMessaging();
         if (!messaging) return;
         
@@ -60,9 +81,12 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
         if (currentToken) {
           setToken(currentToken);
           // Send token to backend
-          await api.post('/push/subscribe', { token: currentToken });
+          await pushService.subscribe(currentToken);
           console.log("Push token sent to backend successfully.");
+          toast.success("Successfully subscribed to notifications!");
         }
+      } else {
+        toast.error("Permission denied for push notifications.");
       }
     } catch (error) {
       console.error("Error subscribing to push notifications:", error);
@@ -101,5 +125,5 @@ export const usePushNotifications = (scrollThreshold = 0.7) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [scrollThreshold]);
 
-  return { requestPermissionAndSubscribe, token };
+  return { requestPermissionAndSubscribe, token, permission };
 };

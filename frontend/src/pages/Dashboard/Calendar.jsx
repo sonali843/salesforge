@@ -124,25 +124,32 @@ const Calendar = () => {
           </div>
 
           {view === "month" ? (
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-px bg-slate-200 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                <div key={d} className={`border-b py-2 text-center text-xs font-semibold uppercase ${s.muted} ${s.divider}`}>{d}</div>
+                <div key={d} className={`py-3 text-center text-xs font-bold uppercase tracking-wider bg-slate-50 dark:bg-slate-850/50 ${s.muted}`}>{d}</div>
               ))}
               {monthDays.map((day, i) => {
-                if (!day) return <div key={i} className={`h-28 border ${darkMode ? "border-slate-800 bg-slate-900/40" : "border-slate-100 bg-slate-50/40"}`} />;
+                if (!day) return <div key={i} className="h-28 bg-slate-50/50 dark:bg-slate-900/40" />;
                 const isToday = day.toDateString() === new Date().toDateString();
                 const dayEvents = eventsByDay[day.toDateString()] || [];
                 return (
-                  <div key={i} className={`h-28 overflow-y-auto border p-1 text-xs ${darkMode ? "border-slate-800" : "border-slate-100"} ${isToday ? (darkMode ? "bg-teal-900/20" : "bg-teal-50/40") : ""}`}>
-                    <div className={`mb-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ${isToday ? "bg-[#00b5ad] text-white" : s.body}`}>
-                      {day.getDate()}
-                    </div>
-                    {dayEvents.slice(0, 3).map((e) => (
-                      <div key={e.id} className={`mb-0.5 truncate rounded px-1 py-0.5 text-[10px] text-white ${colorClass(e.color)}`}>
-                        {new Date(e.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} {e.title}
+                  <div key={i} className={`h-28 overflow-y-auto p-2 text-xs bg-white dark:bg-slate-900 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-850/30 ${isToday ? (darkMode ? "bg-teal-900/20" : "bg-teal-50/40") : ""}`}>
+                    <div className="flex justify-between items-start mb-1.5">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-bold ${isToday ? "bg-[#00b5ad] text-white shadow-sm" : "text-slate-800 dark:text-slate-200"}`}>
+                        {day.getDate()}
                       </div>
-                    ))}
-                    {dayEvents.length > 3 && <p className={`text-[10px] ${s.muted}`}>+{dayEvents.length - 3} more</p>}
+                      {dayEvents.length > 0 && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#00b5ad] mt-3 mr-1" />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {dayEvents.slice(0, 3).map((e) => (
+                        <div key={e.id} className={`truncate rounded-md px-1.5 py-0.5 text-[10px] text-white font-medium ${colorClass(e.color)}`}>
+                          {new Date(e.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} {e.title}
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && <p className={`text-[10px] pl-1 font-semibold text-teal-600 dark:text-teal-400`}>+{dayEvents.length - 3} more</p>}
+                    </div>
                   </div>
                 );
               })}

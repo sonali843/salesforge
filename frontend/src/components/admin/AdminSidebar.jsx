@@ -46,13 +46,13 @@ const AdminSidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
       </button>
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-10 flex flex-col bg-white text-white border-r border-slate-200 transition-all duration-300 ease-in-out ${
+        className={`fixed md:static inset-y-0 left-0 z-10 flex flex-col bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${
           isSidebarOpen
             ? "translate-x-0 w-64"
             : "-translate-x-full w-0 md:w-20 md:translate-x-0"
         }`}
       >
-        <div className="flex items-center justify-between p-4 h-16 border-b border-slate-200">
+        <div className="flex items-center justify-between p-4 h-16 border-b border-slate-200 dark:border-slate-800">
           <div
             className={`transition-all duration-300 overflow-hidden ${
               isSidebarOpen ? "opacity-100 w-32" : "opacity-0 w-0"
@@ -67,7 +67,7 @@ const AdminSidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
 
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="hidden md:block p-1 rounded-full text-slate-400 hover:bg-slate-100"
+            className="hidden md:block p-1 rounded-full text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850"
           >
             {isSidebarOpen ? (
               <ChevronsLeft size={20} />
@@ -77,7 +77,7 @@ const AdminSidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 p-4 mt-4 border-b border-slate-200 mx-2">
+        <div className="flex items-center gap-3 p-4 mt-4 border-b border-slate-200 dark:border-slate-800 mx-2">
           <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center font-bold text-white shadow-lg shadow-teal-900/20 shrink-0">
             {adminName.charAt(0).toUpperCase()}
           </div>
@@ -86,11 +86,11 @@ const AdminSidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
               isSidebarOpen ? "opacity-100" : "opacity-0"
             } ${!isSidebarOpen && "hidden"}`}
           >
-            <span className="block font-semibold text-sm text-slate-900 truncate w-40">
+            <span className="block font-semibold text-sm text-slate-900 dark:text-slate-100 truncate w-40">
               {adminName}
             </span>
             <span
-              className="block text-xs text-slate-500 truncate w-40"
+              className="block text-xs text-slate-500 dark:text-slate-400 truncate w-40"
               title={userEmail}
             >
               {userEmail}
@@ -107,7 +107,7 @@ const AdminSidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
                 `flex items-center p-3 rounded-lg text-sm font-medium transition-colors duration-200 ${
                   isActive
                     ? "bg-teal-600 text-white shadow-lg shadow-teal-900/20"
-                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                    : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white"
                 } ${isSidebarOpen ? "justify-start" : "justify-center"}`
               }
             >
@@ -126,10 +126,10 @@ const AdminSidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {
           ))}
         </nav>
 
-        <div className="p-2 border-t border-slate-200">
+        <div className="p-2 border-t border-slate-200 dark:border-slate-800">
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center p-3 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors ${
+            className={`w-full flex items-center p-3 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors ${
               isSidebarOpen ? "justify-start" : "justify-center"
             }`}
           >

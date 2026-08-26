@@ -60,9 +60,18 @@ if (Number(draft.target) < 0) {
 
       {metrics && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <UptoCard><div className="text-xs text-slate-500">Total target</div><div className="text-2xl font-semibold">${(metrics.totalTarget || 0).toLocaleString()}</div></UptoCard>
-          <UptoCard><div className="text-xs text-slate-500">Total actual</div><div className="text-2xl font-semibold">${(metrics.totalActual || 0).toLocaleString()}</div></UptoCard>
-          <UptoCard><div className="text-xs text-slate-500">Attainment</div><div className="text-2xl font-semibold text-teal-600">{metrics.progress || 0}%</div></UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Total target</div>
+            <div className="text-2xl font-semibold text-slate-900 dark:text-white">${(metrics.totalTarget || 0).toLocaleString()}</div>
+          </UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Total actual</div>
+            <div className="text-2xl font-semibold text-slate-900 dark:text-white">${(metrics.totalActual || 0).toLocaleString()}</div>
+          </UptoCard>
+          <UptoCard>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Attainment</div>
+            <div className="text-2xl font-semibold text-teal-600 dark:text-teal-400">{metrics.progress || 0}%</div>
+          </UptoCard>
         </div>
       )}
 
@@ -77,11 +86,13 @@ if (Number(draft.target) < 0) {
             {items.map((q) => (
               <div key={`${q.userId}-${q.period}`} className="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center justify-between mb-1">
-                  <div className="font-medium">{q.user?.name || "—"} <UptoBadge>{q.type}</UptoBadge></div>
-                  <div className="text-sm text-slate-500">{q.period} · {q.progress}%</div>
+                  <div className="font-medium text-slate-900 dark:text-white">
+                    {q.user?.name || "—"} <UptoBadge>{q.type}</UptoBadge>
+                  </div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">{q.period} · {q.progress}%</div>
                 </div>
                 <UptoProgressBar value={q.progress} />
-                <div className="text-xs text-slate-500 mt-1">${q.actual?.toLocaleString() || 0} of ${q.target?.toLocaleString() || 0}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">${q.actual?.toLocaleString() || 0} of ${q.target?.toLocaleString() || 0}</div>
               </div>
             ))}
           </div>

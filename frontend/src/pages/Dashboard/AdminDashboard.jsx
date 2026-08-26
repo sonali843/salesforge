@@ -7,12 +7,12 @@ const AdminDashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="flex h-screen bg-slate-50 font-inter overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-inter overflow-hidden">
       <AdminSidebar
         isSidebarOpen={isSidebarOpen}
         setIsSidebarOpen={setIsSidebarOpen}
       />
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-slate-50">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-slate-50 dark:bg-slate-950">
         <AdminHeader />
         <Outlet />
         {isSidebarOpen && (

@@ -4,8 +4,10 @@ import {
   Send, CheckCircle, Building, CreditCard, Shield,
 } from "lucide-react";
 import { api, unwrap } from "../../lib/api";
+import { useTheme } from "../../context/ThemeContext";
 
 const AdminSettings = () => {
+  const { theme } = useTheme();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -74,10 +76,10 @@ const AdminSettings = () => {
 
   if (loading) {
     return (
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 overflow-y-auto flex items-center justify-center">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="animate-spin text-teal-600" />
-          <span className="text-slate-500 text-sm">Loading settings...</span>
+          <span className="text-slate-500 dark:text-slate-400 text-sm">Loading settings...</span>
         </div>
       </main>
     );
@@ -85,10 +87,10 @@ const AdminSettings = () => {
 
   if (error && !stats) {
     return (
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 overflow-y-auto flex items-center justify-center">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center">
         <div className="text-center space-y-4">
           <AlertTriangle size={40} className="text-amber-500 mx-auto" />
-          <p className="text-slate-600">{error}</p>
+          <p className="text-slate-600 dark:text-slate-300">{error}</p>
           <button onClick={fetchStats} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-500 transition-colors text-sm inline-flex items-center gap-2">
             <RefreshCw size={14} /> Retry
           </button>
@@ -98,29 +100,29 @@ const AdminSettings = () => {
   }
 
   return (
-    <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 overflow-y-auto">
+    <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
       <div className="mb-6 sm:mb-8">
-        <h2 className="text-lg sm:text-xl font-bold text-slate-800">Global Settings</h2>
-        <p className="text-sm text-slate-500 mt-1">Platform configuration and management tools</p>
+        <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">Global Settings</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Platform configuration and management tools</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
         {/* Platform Stats */}
         <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-5 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-teal-50">
-                <Building size={20} className="text-teal-600" />
+              <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950/20">
+                <Building size={20} className="text-teal-600 dark:text-teal-400" />
               </div>
-              <h3 className="font-semibold text-slate-800">Organization Overview</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-white">Organization Overview</h3>
             </div>
-            <div className="text-3xl font-bold text-slate-800 mb-4">
+            <div className="text-3xl font-bold text-slate-800 dark:text-white mb-4">
               {stats?.total || 0}
-              <span className="text-sm font-normal text-slate-500 ml-2">total organizations</span>
+              <span className="text-sm font-normal text-slate-500 dark:text-slate-400 ml-2">total organizations</span>
             </div>
 
-            <h4 className="text-sm font-medium text-slate-600 mb-3 flex items-center gap-2">
-              <CreditCard size={14} className="text-slate-500" /> By Plan
+            <h4 className="text-sm font-medium text-slate-650 dark:text-slate-300 mb-3 flex items-center gap-2">
+              <CreditCard size={14} className="text-slate-500 dark:text-slate-400" /> By Plan
             </h4>
             <div className="space-y-2.5 mb-6">
               {(stats?.byPlan || []).length === 0 ? (
@@ -131,14 +133,14 @@ const AdminSettings = () => {
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getPlanColor(item.plan)}`}>
                       {item.plan}
                     </span>
-                    <span className="text-sm font-semibold text-slate-800">{item.count}</span>
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{item.count}</span>
                   </div>
                 ))
               )}
             </div>
 
-            <h4 className="text-sm font-medium text-slate-600 mb-3 flex items-center gap-2">
-              <Shield size={14} className="text-slate-500" /> By Status
+            <h4 className="text-sm font-medium text-slate-650 dark:text-slate-300 mb-3 flex items-center gap-2">
+              <Shield size={14} className="text-slate-500 dark:text-slate-400" /> By Status
             </h4>
             <div className="space-y-2.5">
               {(stats?.byStatus || []).length === 0 ? (
@@ -149,7 +151,7 @@ const AdminSettings = () => {
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
                       {item.status}
                     </span>
-                    <span className="text-sm font-semibold text-slate-800">{item.count}</span>
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{item.count}</span>
                   </div>
                 ))
               )}
@@ -159,28 +161,28 @@ const AdminSettings = () => {
 
         {/* System Events */}
         <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-5 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-amber-50">
-                <Send size={20} className="text-amber-600" />
+              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/20">
+                <Send size={20} className="text-amber-600 dark:text-amber-400" />
               </div>
-              <h3 className="font-semibold text-slate-800">Trigger System Event</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-white">Trigger System Event</h3>
             </div>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
               Broadcast system-wide notifications to all users in your organization.
             </p>
 
             <form onSubmit={handleTriggerEvent} className="space-y-4">
               <div>
-                <label htmlFor="admin-event-type" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="admin-event-type" className="block text-sm font-medium text-slate-700 dark:text-slate-350 mb-1.5">
                   Event Type
                 </label>
                 <select
                   id="admin-event-type"
                   value={eventType}
                   onChange={(e) => setEventType(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none appearance-none cursor-pointer"
-                  style={{ colorScheme: "light" }}
+                  className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none appearance-none cursor-pointer"
+                  style={{ colorScheme: theme }}
                 >
                   <option value="MAINTENANCE_NOTICE">Maintenance Notice</option>
                   <option value="BACKUP_COMPLETED">Backup Completed</option>
@@ -188,7 +190,7 @@ const AdminSettings = () => {
               </div>
 
               <div>
-                <label htmlFor="admin-event-msg" className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label htmlFor="admin-event-msg" className="block text-sm font-medium text-slate-700 dark:text-slate-350 mb-1.5">
                   Custom Message <span className="text-slate-400 font-normal">(optional)</span>
                 </label>
                 <textarea
@@ -197,12 +199,12 @@ const AdminSettings = () => {
                   onChange={(e) => setEventMessage(e.target.value)}
                   placeholder="Enter a custom notification message..."
                   rows={3}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white placeholder-slate-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
+                  className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
                 />
               </div>
 
               {eventResult && (
-                <div className={`p-3 rounded-lg text-sm flex items-start gap-2 ${eventResult.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+                <div className={`p-3 rounded-lg text-sm flex items-start gap-2 ${eventResult.type === "success" ? "bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-900/50" : "bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-900/50"}`}>
                   {eventResult.type === "success" ? <CheckCircle size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
                   <span>{eventResult.message}</span>
                 </div>

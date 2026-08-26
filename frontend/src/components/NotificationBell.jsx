@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { notificationService } from "@/services";
 import { openEventStream } from "@/lib/api";
-import { Bell } from "lucide-react";
+import { Bell, BellRing } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 const NotificationBell = () => {
   const { tokenStore } = useAuth();
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
+  const { requestPermissionAndSubscribe, permission } = usePushNotifications();
 
   useEffect(() => {
     let mounted = true;
@@ -23,10 +25,33 @@ const NotificationBell = () => {
     };
     load();
     const stream = openEventStream("/sse/stream", {
-      onEvent: (evt) => {
+      onEvent: (evt, data) => {
         if (evt === "notification.new" || evt === "notifications.read_all") load();
         if (["LEAD_CREATED", "LEAD_UPDATED", "DEAL_CREATED", "DEAL_UPDATED", "PAYMENT_SUCCEEDED", "PAYMENT_FAILED", "USER_INVITED", "USER_JOINED", "INTEGRATION_SYNCED"].includes(evt)) {
           load();
+        }
+
+        // Trigger native desktop notification directly from SSE
+        if (evt === "notification.new" && data) {
+          const payload = data.payload || data;
+          const category = payload.category || "";
+          const message = payload.message || "You have a new notification";
+          const title = (category ? category.charAt(0).toUpperCase() + category.slice(1) : "New") + " Notification";
+          if ("Notification" in window && Notification.permission === "granted") {
+            try {
+              if (navigator.serviceWorker) {
+                navigator.serviceWorker.ready.then(reg => {
+                  reg.showNotification(title, { body: message });
+                }).catch(() => {
+                  new Notification(title, { body: message });
+                });
+              } else {
+                new Notification(title, { body: message });
+              }
+            } catch (e) {
+              console.warn("Native Notification failed:", e);
+            }
+          }
         }
       },
     });
@@ -61,9 +86,17 @@ const NotificationBell = () => {
       </button>
       {open && (
         <div className="absolute right-0 z-40 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2 text-sm font-semibold dark:border-gray-800">
-            <span>Notifications</span>
-            <button onClick={markAll} className="text-xs font-normal text-teal-600 hover:underline">Mark all read</button>
+          <div className="flex flex-col border-b border-gray-200 dark:border-gray-800">
+            <div className="flex items-center justify-between px-4 py-2 text-sm font-semibold">
+              <span>Notifications</span>
+              <button onClick={markAll} className="text-xs font-normal text-teal-600 hover:underline">Mark all read</button>
+            </div>
+            {permission === "default" && (
+              <div className="bg-teal-50 px-4 py-2 flex items-center justify-between dark:bg-teal-900/20">
+                <span className="text-xs text-teal-800 dark:text-teal-200 flex items-center gap-1.5"><BellRing size={14} /> Enable push notifications</span>
+                <button onClick={requestPermissionAndSubscribe} className="text-xs font-semibold text-teal-600 hover:underline dark:text-teal-400">Enable</button>
+              </div>
+            )}
           </div>
           <ul className="max-h-80 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
             {items.length === 0 ? (

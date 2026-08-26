@@ -1,3 +1,5 @@
+const { connectRedis, redisClient } = require("./config/redis");
+
 const path = require("path");
 
 for (const envFile of [path.resolve(__dirname, ".env.local"), path.resolve(__dirname, ".env")]) {
@@ -9,8 +11,13 @@ const { connectPostgres, prisma } = require("./config/postgres");
 const logger = require("./utils/logger");
 const jobs = require("./jobs/followupJob");
 
+// Initialize Firebase Admin for Push Notifications
+require("./config/firebase");
+
 const startServer = async (port = Number(process.env.PORT || 3000)) => {
   await connectPostgres();
+  await connectRedis();
+  console.log("Redis status:", redisClient.isOpen);
 
   const server = app.listen(port, () => {
     if (process.env.NODE_ENV !== "test") {

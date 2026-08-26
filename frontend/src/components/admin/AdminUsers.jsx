@@ -86,21 +86,21 @@ const AdminUsers = () => {
   };
 
   return (
-    <main className="flex-1 p-8 bg-slate-50 overflow-y-auto">
+    <main className="flex-1 p-8 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">User Management</h2>
-          <p className="text-sm text-slate-500 mt-1">{total} total users on the platform</p>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">User Management</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{total} total users on the platform</p>
         </div>
         <form onSubmit={handleSearch} className="flex items-center gap-2">
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search users..."
-              className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 bg-white placeholder-slate-400 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none w-64"
+              className="pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none w-64"
             />
           </div>
           <button
@@ -113,26 +113,26 @@ const AdminUsers = () => {
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center gap-3 text-red-700 text-sm">
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 rounded-lg flex items-center gap-3 text-red-700 dark:text-red-400 text-sm">
           <AlertTriangle size={18} />
           <span>{error}</span>
-          <button onClick={fetchUsers} className="ml-auto text-red-600 hover:text-red-800">
+          <button onClick={fetchUsers} className="ml-auto text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
             <RefreshCw size={16} />
           </button>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 flex items-center justify-center">
             <Loader2 size={28} className="animate-spin text-teal-600" />
-            <span className="ml-3 text-slate-500 text-sm">Loading users...</span>
+            <span className="ml-3 text-slate-500 dark:text-slate-400 text-sm">Loading users...</span>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                <thead className="bg-slate-50 dark:bg-slate-850/50 text-slate-500 dark:text-slate-400 font-medium border-b border-slate-100 dark:border-slate-800">
                   <tr>
                     <th className="p-4">User</th>
                     <th className="p-4">Role</th>
@@ -142,24 +142,24 @@ const AdminUsers = () => {
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {users.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-400">
+                      <td colSpan={6} className="p-8 text-center text-slate-400 dark:text-slate-500">
                         No users found
                       </td>
                     </tr>
                   ) : (
                     users.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                      <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors">
                         <td className="p-4">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
                               {(user.name || "?").charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <div className="font-medium text-slate-900">{user.name}</div>
-                              <div className="text-slate-500 text-xs">{user.email}</div>
+                              <div className="font-medium text-slate-900 dark:text-slate-100">{user.name}</div>
+                              <div className="text-slate-500 dark:text-slate-400 text-xs">{user.email}</div>
                             </div>
                           </div>
                         </td>
@@ -168,7 +168,7 @@ const AdminUsers = () => {
                             <select
                               value={editRole}
                               onChange={(e) => setEditRole(e.target.value)}
-                              className="px-2 py-1 border border-slate-200 rounded-md text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                              className="px-2 py-1 border border-slate-200 dark:border-slate-800 rounded-md text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
                             >
                               {ROLES.map((r) => (
                                 <option key={r} value={r}>{r}</option>
@@ -180,19 +180,19 @@ const AdminUsers = () => {
                             </span>
                           )}
                         </td>
-                        <td className="p-4 text-slate-600">
-                          {user.organization?.name || <span className="text-slate-400 italic">None</span>}
+                        <td className="p-4 text-slate-600 dark:text-slate-300">
+                          {user.organization?.name || <span className="text-slate-400 dark:text-slate-500 italic">None</span>}
                         </td>
                         <td className="p-4">
                           {user.organization?.plan ? (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700">
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400">
                               {user.organization.plan}
                             </span>
                           ) : (
-                            <span className="text-slate-400 text-xs">—</span>
+                            <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
                           )}
                         </td>
-                        <td className="p-4 text-slate-500 text-xs">
+                        <td className="p-4 text-slate-500 dark:text-slate-400 text-xs">
                           {new Date(user.createdAt).toLocaleDateString()}
                         </td>
                         <td className="p-4 text-right">
@@ -201,14 +201,14 @@ const AdminUsers = () => {
                               <button
                                 onClick={() => handleSaveRole(user.id)}
                                 disabled={saving}
-                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                                className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-md transition-colors"
                                 title="Save"
                               >
                                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                               </button>
                               <button
                                 onClick={() => setEditingUser(null)}
-                                className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors"
+                                className="p-1.5 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                                 title="Cancel"
                               >
                                 <X size={16} />
@@ -217,7 +217,7 @@ const AdminUsers = () => {
                           ) : (
                             <button
                               onClick={() => handleEditRole(user)}
-                              className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-md transition-colors"
+                              className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/20 rounded-md transition-colors"
                               title="Edit Role"
                             >
                               <Edit3 size={16} />
@@ -233,22 +233,22 @@ const AdminUsers = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-sm text-slate-500">
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-sm text-slate-500 dark:text-slate-400">
                   Page {page} of {totalPages} ({total} users)
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1}
-                    className="p-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronLeft size={16} />
                   </button>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
-                    className="p-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronRight size={16} />
                   </button>

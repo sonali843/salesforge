@@ -110,28 +110,50 @@ api.interceptors.response.use(
 );
 
 export const unwrap = (promise) =>
-  promise.then((r) => r.data).then((body) => {
-    if (body && typeof body === "object" && "success" in body) {
-      if (!body.success) {
-        const err = new Error(body.message || "Request failed");
-        err.response = body;
-        throw err;
+  promise
+    .then((r) => r.data)
+    .then((body) => {
+      if (body && typeof body === "object" && "success" in body) {
+        if (!body.success) {
+          const detailStr = body.details && Array.isArray(body.details) ? ': ' + body.details.join(', ') : '';
+          const err = new Error((body.message || "Request failed") + detailStr);
+          err.response = body;
+          throw err;
+        }
+        return body.data !== undefined ? body.data : body;
       }
-      return body.data !== undefined ? body.data : body;
-    }
-    return body;
-  });
+      return body;
+    })
+    .catch((err) => {
+      if (err.normalized) {
+        const detailStr = err.normalized.details && Array.isArray(err.normalized.details) ? ': ' + err.normalized.details.join(', ') : '';
+        throw new Error(err.normalized.message + detailStr);
+      }
+      throw err;
+    });
 
 // Helper that flattens the paginated wrapper to an array + pagination meta.
 export const unwrapList = (promise) =>
-  promise.then((r) => r.data).then((body) => {
-    if (!body?.success) throw new Error(body?.message || "Request failed");
-    const data = body.data;
-    const meta = body.meta?.pagination || {};
-    if (Array.isArray(data)) return { items: data, ...meta };
-    if (data && Array.isArray(data.data)) return { items: data.data, ...meta };
-    return { items: [], ...meta };
-  });
+  promise
+    .then((r) => r.data)
+    .then((body) => {
+      if (!body?.success) {
+        const detailStr = body?.details && Array.isArray(body?.details) ? ': ' + body.details.join(', ') : '';
+        throw new Error((body?.message || "Request failed") + detailStr);
+      }
+      const data = body.data;
+      const meta = body.meta?.pagination || {};
+      if (Array.isArray(data)) return { items: data, ...meta };
+      if (data && Array.isArray(data.data)) return { items: data.data, ...meta };
+      return { items: [], ...meta };
+    })
+    .catch((err) => {
+      if (err.normalized) {
+        const detailStr = err.normalized.details && Array.isArray(err.normalized.details) ? ': ' + err.normalized.details.join(', ') : '';
+        throw new Error(err.normalized.message + detailStr);
+      }
+      throw err;
+    });
 
 // SSE helper for real-time streams.
 export const openEventStream = (path, { onEvent, onError, params = {} } = {}) => {
